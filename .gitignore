@@ -1,0 +1,12 @@
+﻿.vs/
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+*.cache
+Debug/
+Release/
+packages/
+.idea/
+.vscode/
