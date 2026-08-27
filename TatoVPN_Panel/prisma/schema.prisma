@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         String    @default("ADMIN")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model VpsServer {
+  id            String       @id @default(cuid())
+  name          String
+  ip            String       @unique
+  sshPort       Int          @default(22) @map("ssh_port")
+  rootUser      String       @default("root") @map("root_user")
+  rootPassword  String?      @map("root_password")
+  status        String       @default("OFFLINE") // ONLINE, OFFLINE, CONFIGURING, ERROR
+  location      String       @default("Custom VPS")
+  osInfo        String?      @map("os_info")
+  sslPort       Int          @default(443) @map("ssl_port")
+  openSshPort   Int          @default(22) @map("openssh_port")
+  badvpnPort    Int          @default(7300) @map("badvpn_port")
+  dropbearPort  Int          @default(80) @map("dropbear_port")
+  socksPort     Int          @default(1080) @map("socks_port")
+  isConfigured  Boolean      @default(false) @map("is_configured")
+  lastChecked   DateTime?    @map("last_checked")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  vpnAccounts   VpnAccount[]
+  logs          VpsTaskLog[]
+
+  @@map("vps_servers")
+}
+
+model VpnAccount {
+  id              String    @id @default(cuid())
+  username        String
+  password        String
+  vpsId           String    @map("vps_id")
+  vps             VpsServer @relation(fields: [vpsId], references: [id], onDelete: Cascade)
+  connectionLimit Int       @default(999) @map("connection_limit")
+  expirationDate  DateTime? @map("expiration_date")
+  isActive        Boolean   @default(true) @map("is_active")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([username, vpsId])
+  @@map("vpn_accounts")
+}
+
+model VpsTaskLog {
+  id        String    @id @default(cuid())
+  vpsId     String    @map("vps_id")
+  vps       VpsServer @relation(fields: [vpsId], references: [id], onDelete: Cascade)
+  action    String
+  status    String    @default("PENDING") // PENDING, SUCCESS, FAILED
+  output    String?   @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("vps_task_logs")
+}
