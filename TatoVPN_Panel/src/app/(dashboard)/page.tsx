@@ -15,6 +15,14 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+type RecentServer = Awaited<ReturnType<typeof prisma.vpsServer.findMany>>[number] & {
+  _count: { vpnAccounts: number };
+};
+
+type RecentUser = Awaited<ReturnType<typeof prisma.vpnAccount.findMany>>[number] & {
+  vps: { name: string; ip: string };
+};
+
 export default async function DashboardPage() {
   const [
     totalServers,
@@ -149,7 +157,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentServers.map((server) => (
+                {recentServers.map((server: RecentServer) => (
                   <div
                     key={server.id}
                     className="p-3.5 rounded-xl bg-tato-850 border border-tato-800 flex items-center justify-between hover:border-tato-700 transition"
@@ -217,7 +225,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentUsers.map((user) => (
+                {recentUsers.map((user: RecentUser) => (
                   <div
                     key={user.id}
                     className="p-3.5 rounded-xl bg-tato-850 border border-tato-800 flex items-center justify-between hover:border-tato-700 transition"
