@@ -264,6 +264,9 @@ public class SshService : ISshService
 
             var tcpClient = new System.Net.Sockets.TcpClient();
             tcpClient.NoDelay = true;
+            tcpClient.ReceiveBufferSize = 65536;
+            tcpClient.SendBufferSize = 65536;
+            try { tcpClient.LingerState = new System.Net.Sockets.LingerOption(false, 0); } catch { }
             tcpClient.Connect("127.0.0.1", (int)portForward.BoundPort);
 
             return tcpClient.GetStream();
@@ -306,9 +309,9 @@ public class SshService : ISshService
 
             var tcpClient = new System.Net.Sockets.TcpClient();
             tcpClient.NoDelay = true;
-            tcpClient.ReceiveBufferSize = 262144;
-            tcpClient.SendBufferSize = 262144;
-            try { tcpClient.LingerState = new System.Net.Sockets.LingerOption(true, 5); } catch { }
+            tcpClient.ReceiveBufferSize = 65536;
+            tcpClient.SendBufferSize = 65536;
+            try { tcpClient.LingerState = new System.Net.Sockets.LingerOption(false, 0); } catch { }
             tcpClient.Connect("127.0.0.1", (int)portForward.BoundPort);
 
             var ns = tcpClient.GetStream();

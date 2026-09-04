@@ -90,11 +90,17 @@ public class DnsProxyService : IDnsProxyService
                 // Ignorar excepción Winsock 10054 (ICMP Port Unreachable) y continuar escuchando consultas DNS
                 continue;
             }
+            catch (SocketException se) when (se.SocketErrorCode == SocketError.NoBufferSpaceAvailable || se.NativeErrorCode == 10055)
+            {
+                // Cola de socket del sistema llena (WSAENOBUFS 10055)
+                try { await Task.Delay(200, cancellationToken); } catch { }
+            }
             catch (Exception ex)
             {
                 if (_isRunning && !cancellationToken.IsCancellationRequested)
                 {
                     _logger.Log($"Error en recepción UDP DNS: {ex.Message}");
+                    try { await Task.Delay(100, cancellationToken); } catch { }
                 }
             }
         }
@@ -209,11 +215,14 @@ public class DnsProxyService : IDnsProxyService
 
         foreach (var dnsIp in dnsServers)
         {
+            var conn = await ConnectTcpDnsOverSocks5Async(dnsIp, 53, cancellationToken);
+            if (conn == null) continue;
+
+            using var tcpClient = conn.Value.Client;
+            using var stream = conn.Value.Stream;
+
             try
             {
-                using var stream = await ConnectTcpDnsOverSocks5Async(dnsIp, 53, cancellationToken);
-                if (stream == null) continue;
-
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 cts.CancelAfter(3500);
 
@@ -248,9 +257,10 @@ public class DnsProxyService : IDnsProxyService
         return null;
     }
 
-    private async Task<NetworkStream?> ConnectTcpDnsOverSocks5Async(string targetDnsIp, int targetDnsPort, CancellationToken cancellationToken)
+    private async Task<(TcpClient Client, NetworkStream Stream)?> ConnectTcpDnsOverSocks5Async(string targetDnsIp, int targetDnsPort, CancellationToken cancellationToken)
     {
-        var tcpClient = new TcpClient { NoDelay = true };
+        var tcpClient = new TcpClient { NoDelay = true, ReceiveBufferSize = 65536, SendBufferSize = 65536 };
+        try { tcpClient.LingerState = new LingerOption(false, 0); } catch { }
 
         try
         {
@@ -268,7 +278,7 @@ public class DnsProxyService : IDnsProxyService
             await ReadExactAsync(stream, handshakeReply, 0, 2, cts.Token);
             if (handshakeReply[0] != 0x05 || handshakeReply[1] != 0x00)
             {
-                tcpClient.Close();
+                try { tcpClient.Close(); tcpClient.Dispose(); } catch { }
                 return null;
             }
 
@@ -289,7 +299,7 @@ public class DnsProxyService : IDnsProxyService
             await ReadExactAsync(stream, connectReplyHeader, 0, 4, cts.Token);
             if (connectReplyHeader[1] != 0x00)
             {
-                tcpClient.Close();
+                try { tcpClient.Close(); tcpClient.Dispose(); } catch { }
                 return null;
             }
 
@@ -315,11 +325,11 @@ public class DnsProxyService : IDnsProxyService
                 await ReadExactAsync(stream, remBuf, 0, remainingLen, cts.Token);
             }
 
-            return stream;
+            return (tcpClient, stream);
         }
         catch
         {
-            tcpClient.Close();
+            try { tcpClient.Close(); tcpClient.Dispose(); } catch { }
             return null;
         }
     }

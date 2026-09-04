@@ -935,6 +935,8 @@ public partial class Form1 : Form
                     return "Red inalcanzable (revisa tu conexión a Internet o la ruta de red).";
                 case SocketError.ConnectionReset:
                     return "Conexión reiniciada por el host remoto (posible reinicio del servidor SSH).";
+                case SocketError.NoBufferSpaceAvailable:
+                    return "Espacio de búfer o cola de sockets del sistema temporalmente saturada (WSAENOBUFS 10055).";
             }
         }
 

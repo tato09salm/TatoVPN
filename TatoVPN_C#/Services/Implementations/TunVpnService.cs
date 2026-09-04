@@ -11,6 +11,8 @@ public class TunVpnService : ITunVpnService
 {
     private readonly ILoggerService _logger;
     private readonly IDnsProxyService _dnsProxyService;
+    private readonly IFirewallService _firewallService;
+    private readonly IDnsManagerService _dnsManagerService;
     private Process? _tunProcess;
     private string? _addedSshHostIp;
     private string? _addedGatewayIp;
@@ -19,10 +21,16 @@ public class TunVpnService : ITunVpnService
 
     public bool IsRunning => _isRunning;
 
-    public TunVpnService(ILoggerService logger, IDnsProxyService? dnsProxyService = null)
+    public TunVpnService(
+        ILoggerService logger, 
+        IDnsProxyService? dnsProxyService = null,
+        IFirewallService? firewallService = null,
+        IDnsManagerService? dnsManagerService = null)
     {
         _logger = logger;
         _dnsProxyService = dnsProxyService ?? new DnsProxyService(logger);
+        _firewallService = firewallService ?? new FirewallService(logger);
+        _dnsManagerService = dnsManagerService ?? new DnsManagerService(logger);
     }
 
     public static bool IsAdministrator()
@@ -70,10 +78,16 @@ public class TunVpnService : ITunVpnService
             _addedInterfaceIndex = ifIndex;
         }
 
-        // 4. Iniciar servicio de Proxy DNS UDP-a-TCP en loopback (127.0.0.1:53)
+        // 4. Blindaje DNS a bajo nivel: Forzar 127.0.0.1 en adaptadores físicos mediante WMI para anular fugas multi-homed
+        _dnsManagerService.ForceLoopbackDnsOnPhysicalAdapters();
+
+        // 5. Blindaje perimetral COM: Bloquear datagramas UDP salientes (QUIC/HTTP3) en Windows Firewall
+        _firewallService.ApplyUdpContainmentRules();
+
+        // 6. Iniciar servicio de Proxy DNS UDP-a-TCP en loopback (127.0.0.1:53)
         await _dnsProxyService.StartAsync(settings, cancellationToken);
 
-        // 5. Buscar binarios de tun2socks y wintun.dll
+        // 7. Buscar binarios de tun2socks y wintun.dll
         string tun2socksPath = GetBinaryPath("tun2socks.exe");
         string wintunPath = GetBinaryPath("wintun.dll");
 
@@ -90,12 +104,12 @@ public class TunVpnService : ITunVpnService
             try { File.Copy(wintunPath, targetWintun, true); } catch { }
         }
 
-        // 6. Iniciar proceso tun2socks con auto-tuning TCP y buffers optimizados de 4MB
+        // 8. Iniciar proceso tun2socks con auto-tuning TCP y buffers optimizados de 4MB
         string proxyUrl = $"socks5://{settings.SocksLocalIp}:{settings.SocksLocalPort}";
         var psi = new ProcessStartInfo
         {
             FileName = tun2socksPath,
-            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --tcp-auto-tuning --tcp-rcvbuf 4m --tcp-sndbuf 4m --udp-timeout 1s --loglevel silent",
+            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --tcp-auto-tuning --tcp-rcvbuf 64k --tcp-sndbuf 64k --udp-timeout 1s --loglevel silent",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = false,
@@ -114,7 +128,7 @@ public class TunVpnService : ITunVpnService
             throw new InvalidOperationException($"Error al iniciar tun2socks: {ex.Message}", ex);
         }
 
-        // 7. Esperar a que Windows inicialice la interfaz Wintun "TatoVPN"
+        // 9. Esperar a que Windows inicialice la interfaz Wintun "TatoVPN"
         await Task.Delay(2000, cancellationToken);
 
         if (_tunProcess.HasExited)
@@ -128,13 +142,13 @@ public class TunVpnService : ITunVpnService
         // Habilitar la interfaz si estaba previamente desactivada
         try { RunCommandDirect("netsh", $"interface set interface name=\"{actualAdapterName}\" admin=enabled"); } catch { }
 
-        // 8. Configurar IP estática, Gateway y DNS apuntando EXCLUSIVAMENTE a 127.0.0.1 (Loopback)
+        // 10. Configurar IP estática, Gateway y DNS apuntando EXCLUSIVAMENTE a 127.0.0.1 (Loopback)
         RunCommandDirect("netsh", $"interface ipv4 set address name=\"{actualAdapterName}\" static 10.255.0.2 255.255.255.0 gateway=10.255.0.1 gwmetric=1");
         RunCommandDirect("netsh", $"interface ipv4 set dnsservers name=\"{actualAdapterName}\" static 127.0.0.1 primary validate=no");
         RunCommandDirect("netsh", $"interface ipv4 set interface name=\"{actualAdapterName}\" metric=1");
         try { RunCommandDirect("netsh", $"interface ipv6 set interface name=\"{actualAdapterName}\" admin=disabled"); } catch { }
 
-        // 9. Redirigir todo el tráfico global IPv4 de Windows al adaptador TUN mediante subredes /1
+        // 11. Redirigir todo el tráfico global IPv4 de Windows al adaptador TUN mediante subredes /1
         string routeCmd0 = tatoVpnIfIndex > 0
             ? $"add 0.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1 if {tatoVpnIfIndex}"
             : $"add 0.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1";
@@ -188,14 +202,28 @@ public class TunVpnService : ITunVpnService
         }
         catch { }
 
-        // 5. Detener servicio DNS Proxy
+        // 5. Desmontar reglas de Firewall COM
+        try
+        {
+            _firewallService.RemoveUdpContainmentRules();
+        }
+        catch { }
+
+        // 6. Restaurar DNS originales en adaptadores físicos mediante WMI
+        try
+        {
+            _dnsManagerService.RestorePhysicalAdaptersDns();
+        }
+        catch { }
+
+        // 7. Detener servicio DNS Proxy
         try
         {
             await _dnsProxyService.StopAsync();
         }
         catch { }
 
-        // 6. Detener proceso tun2socks
+        // 8. Detener proceso tun2socks
         if (_tunProcess != null)
         {
             try
@@ -214,7 +242,7 @@ public class TunVpnService : ITunVpnService
 
         KillAllTun2SocksProcesses();
 
-        // 7. Flush DNS
+        // 9. Flush DNS
         RunCommandDirect("ipconfig", "/flushdns");
 
         _isRunning = false;
@@ -234,6 +262,10 @@ public class TunVpnService : ITunVpnService
             RunCommandDirect("netsh", "interface ipv4 set address name=\"TatoVPN\" dhcp");
             RunCommandDirect("netsh", "interface ipv4 set interface name=\"TatoVPN\" metric=automatic");
             RunCommandDirect("netsh", "interface set interface name=\"TatoVPN\" admin=disabled");
+
+            // Limpieza de emergencia de reglas de Firewall y restauración de DNS WMI
+            FirewallService.EmergencyCleanupFirewallRules();
+            DnsManagerService.EmergencyRestoreDns();
 
             RunCommandDirect("ipconfig", "/flushdns");
         }
@@ -444,6 +476,18 @@ public class TunVpnService : ITunVpnService
         try
         {
             _dnsProxyService.Dispose();
+        }
+        catch { }
+
+        try
+        {
+            _firewallService.Dispose();
+        }
+        catch { }
+
+        try
+        {
+            _dnsManagerService.Dispose();
         }
         catch { }
 

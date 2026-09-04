@@ -13,6 +13,7 @@ public class SocksProxyService : ISocksProxyService
     private ISshService? _sshService;
     private ConnectionSettings? _settings;
     private bool _isRunning;
+    private readonly SemaphoreSlim _concurrencySemaphore = new(256, 256);
 
     public bool IsRunning => _isRunning;
 
@@ -156,21 +157,33 @@ public class SocksProxyService : ISocksProxyService
             {
                 break;
             }
+            catch (SocketException se) when (se.SocketErrorCode == SocketError.NoBufferSpaceAvailable || se.NativeErrorCode == 10055)
+            {
+                _logger.Log("⚠️ Cola de sockets del sistema llena (WSAENOBUFS 10055). Pausando aceptación brevemente...");
+                try { await Task.Delay(250, cancellationToken); } catch { }
+            }
             catch (Exception ex)
             {
                 _logger.Log($"Error aceptando cliente SOCKS: {ex.Message}");
+                try { await Task.Delay(100, cancellationToken); } catch { }
             }
         }
     }
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
     {
+        if (!await _concurrencySemaphore.WaitAsync(2000, cancellationToken))
+        {
+            try { client.Close(); client.Dispose(); } catch { }
+            return;
+        }
+
         try
         {
             client.NoDelay = true;
-            client.ReceiveBufferSize = 524288;
-            client.SendBufferSize = 524288;
-            try { client.LingerState = new LingerOption(true, 3); } catch { }
+            client.ReceiveBufferSize = 65536;
+            client.SendBufferSize = 65536;
+            try { client.LingerState = new LingerOption(false, 0); } catch { }
 
             using (client)
             {
@@ -244,6 +257,10 @@ public class SocksProxyService : ISocksProxyService
             }
         }
         catch { }
+        finally
+        {
+            _concurrencySemaphore.Release();
+        }
     }
 
     private sealed class SocksCommandResult
@@ -327,7 +344,8 @@ public class SocksProxyService : ISocksProxyService
             }
             else
             {
-                result.DirectTcpClient = new TcpClient { NoDelay = true, ReceiveBufferSize = 524288, SendBufferSize = 524288 };
+                result.DirectTcpClient = new TcpClient { NoDelay = true, ReceiveBufferSize = 65536, SendBufferSize = 65536 };
+                try { result.DirectTcpClient.LingerState = new LingerOption(false, 0); } catch { }
                 await result.DirectTcpClient.ConnectAsync(targetHost, targetPort, cancellationToken);
                 result.RemoteStream = result.DirectTcpClient.GetStream();
             }
@@ -416,7 +434,7 @@ public class SocksProxyService : ISocksProxyService
 
     private static async Task CopyStreamAsync(Stream source, Stream destination, CancellationToken cancellationToken)
     {
-        byte[] buffer = new byte[131072];
+        byte[] buffer = new byte[65536];
         try
         {
             int bytesRead;
@@ -452,6 +470,7 @@ public class SocksProxyService : ISocksProxyService
         }
         try { _cts?.Dispose(); } catch { }
         _cts = null;
+        try { _concurrencySemaphore.Dispose(); } catch { }
         _settings = null;
         _sshService = null;
         GC.SuppressFinalize(this);

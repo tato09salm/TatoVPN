@@ -1,0 +1,159 @@
+# Explicación Técnica y Detallada de TatoVPN (TatoVPN_C#)
+
+## 1. Visión General del Proyecto
+**TatoVPN** es un cliente VPN y túnel avanzado para Windows desarrollado en C# (.NET / Windows Forms). Su función principal es redirigir y encriptar de forma segura todo el tráfico de la red del sistema operativo (o tráfico proxy específico) hacia un servidor SSH remoto, incorporando técnicas de evasión de bloqueos e inspección profunda de paquetes (DPI) mediante capas TLS/SNI y enrutamiento TUN a nivel de kernel de Windows.
+
+---
+
+## 2. Flujo de Funcionamiento (Paso a Paso)
+
+El flujo de conexión y encapsulamiento de red se ejecuta de la siguiente manera:
+
+```
+[ Tráfico del Sistema / Apps ]
+           │
+           ▼
+[ Adaptador Virtual TUN (Wintun.dll) ] ── (Captura paquetes IPv4 a nivel capa 3)
+           │
+           ▼
+[ tun2socks.exe ] ── (Convierte paquetes IP de capa de red en peticiones SOCKS5)
+           │
+           ▼
+[ Proxy SOCKS5 Local (127.0.0.1:1080) ] ── [SocksProxyService]
+           │
+           ├─► (Si usa TLS/SNI) ──► [ Puente Local TLS (127.0.0.1:PuertoEfemero) ] ──► [ Servidor Remoto:443 (SSL Handshake / SNI Spoofing) ]
+           │
+           └─► (Conexión Directa) ──► [ Túnel SSH (Renci.SshNet) ] ──► [ Servidor SSH Remoto:22 ]
+                                                  │
+                                                  ▼
+                                      [ Salida a Internet Libre ]
+```
+
+### Pasos detallados del ciclo de vida:
+
+1. **Control de Instancia Única e Inicialización (`Program.cs`):**
+   - Utiliza un `Mutex` global del sistema (`TatoVPN_SingleInstance_Mutex_9A8B7C6D`) para evitar múltiples instancias concurrentes.
+   - Si el usuario abre el programa mientras ya se ejecuta, envía un mensaje nativo Win32 (`WM_SHOWME`) a la ventana existente y finaliza el nuevo proceso.
+   - Registra eventos de salida de emergencia (`ProcessExit`, `ApplicationExit`) para garantizar que las rutas de red y adaptadores se limpien siempre.
+
+2. **Capa de Ofuscación TLS / SNI (Opcional - `TlsService.cs`):**
+   - Si la opción **Use SSL/TLS** está activa, el cliente levanta un servidor puente TCP local (`TcpListener`) en una dirección loopback con un puerto efímero.
+   - La conexión SSH no se conecta directamente al host SSH, sino a través de este puente local.
+   - El puente toma el tráfico entrante y lo encapsula dentro de una conexión TLS legítima hacia el servidor (usualmente en el puerto 443), inyectando el nombre del host indicado como **SNI** (Server Name Indication). Esto permite camuflar el tráfico SSH simulando ser una navegación HTTPS común para evitar bloqueos por parte de cortafuegos o proveedores de internet (ISP).
+
+3. **Establecimiento de la Sesión SSH (`SshService.cs`):**
+   - Se conecta al servidor SSH usando credenciales de usuario/contraseña o clave privada mediante la librería `Renci.SshNet`.
+   - Se habilita el reenvío de puertos dinámico (Dynamic Port Forwarding) o multiplexación de canales SSH directos (`CreateForwardedPortStreamAsync`).
+
+4. **Servidor SOCKS5 Local (`SocksProxyService.cs`):**
+   - Escucha en `127.0.0.1:1080`.
+   - Gestiona el protocolo de enlace SOCKS5 (RFC 1928): saludo de versiones, métodos de autenticación (`NO_AUTHENTICATION_REQUIRED`) y comandos `CONNECT`.
+   - Para cada petición entrante, crea un canal o stream SSH hacia el destino solicitado y retransmite bidireccionalmente los paquetes.
+
+5. **Activación del Modo TUN Global (`TunVpnService.cs`):**
+   - Requiere privilegios de Administrador.
+   - **Bypass de Bucle de Enrutamiento (Routing Loop Bypass):** Obtiene la puerta de enlace física y la IP pública del servidor SSH, agregando una ruta estática `/32` directa hacia el servidor SSH a través del router físico para que el tráfico cifrado de la VPN no intente entrar dentro del propio túnel (lo cual crearía un bucle infinito).
+   - **Wintun & tun2socks:** Lanza el binario `tun2socks.exe` vinculado al adaptador de red virtual creado por `wintun.dll` (`tun://TatoVPN`).
+   - Configura la interfaz virtual con IP estática `10.255.0.2` y puerta de enlace `10.255.0.1`.
+   - **Enrutamiento Global:** Inyecta dos rutas `/1` (`0.0.0.0/1` y `128.0.0.0/1`) apuntando al adaptador TUN con métrica 1. Este método cubre todo el espacio IPv4 global con mayor prioridad que la ruta por defecto del sistema sin sobrescribir destructivamente la tabla de enrutamiento principal.
+
+6. **Proxy y Resolución DNS Segura (`DnsProxyService.cs`):**
+   - Escucha localmente peticiones DNS UDP en el puerto 53 (`127.0.0.1:53`).
+   - Debido a que los túneles SSH estándar solo soportan TCP nativo, el servicio captura las consultas DNS UDP de Windows, las serializa en formato RFC 1035 para DNS sobre TCP, las envía a través del proxy SOCKS5 hacia servidores DNS externos (como Cloudflare `1.1.1.1` o Google `8.8.8.8`) y devuelve la respuesta en UDP al sistema operativo.
+   - Incorpora una memoria caché concurrente de DNS para maximizar la velocidad de resolución y reducir latencia.
+
+7. **Desconexión y Restauración Limpia:**
+   - Detiene el proceso `tun2socks`.
+   - Elimina las rutas estáticas añadidas (`0.0.0.0/1`, `128.0.0.0/1` y la ruta específica del SSH Host).
+   - Desactiva el adaptador TUN y libera los puertos y sockets abiertos.
+   - Ejecuta `ipconfig /flushdns` para limpiar la caché del sistema.
+
+---
+
+## 3. Desglose de Cada Componente del Proyecto
+
+### 📁 Raíz del Proyecto
+- **`Program.cs`:** Punto de entrada principal de la aplicación Windows Forms. Gestiona el mutex de instancia única, comunicación inter-proceso mediante Win32 API (`RegisterWindowMessage`, `PostMessage`), inicialización de la configuración y captura de eventos de salida del proceso para limpieza de emergencia (`EmergencyCleanup`).
+- **`Form1.cs` / `Form1.Designer.cs`:** Interfaz gráfica de usuario principal. Maneja las interacciones del usuario (botones conectar/desconectar, selección de perfiles, formularios de credenciales SSH/TLS, visor de registros en tiempo real, estadísticas de conexión y bandeja del sistema / System Tray).
+- **`miVPN.csproj`:** Archivo de proyecto .NET que define dependencias (ej. `SSH.NET`) y configuraciones de compilación.
+
+---
+
+### 📁 Capa de Modelos (`Models/`)
+- **`ConnectionSettings.cs`:** Estructura de datos que almacena los parámetros de conexión requeridos:
+  - `SshHost`, `SshPort`, `Username`, `Password`.
+  - `SocksLocalIp`, `SocksLocalPort`.
+  - `UseSslTls`, `TlsPort`, `TlsServerName` (SNI), `TlsVersion`.
+  - `EnableTunMode` (activar/desactivar VPN global a nivel de sistema).
+- **`ConnectionHistoryEntry.cs`:** Representa un registro histórico de conexiones previas (fecha, servidor, duración, estado final).
+
+---
+
+### 📁 Capa de Enumeraciones (`Enums/`)
+- **`ConnectionState.cs`:** Enumera los estados posibles del ciclo de vida de la conexión: `Disconnected`, `Connecting`, `Connected`, `Disconnecting`, `Reconnecting`, `Error`.
+
+---
+
+### 📁 Capa de Servicios e Interfaces (`Services/`)
+
+#### 1. `ISshService.cs` / `SshService.cs`
+- **Función:** Manejo de la conexión SSH de bajo nivel.
+- **Detalles clave:**
+  - Establece conexión autenticada vía SSH utilizando `Renci.SshNet`.
+  - Proporciona reenvío de puertos dinámico (`StartDynamicPortForwarding`).
+  - Proporciona creación de streams de conexión directa a través del túnel SSH para alimentar al proxy SOCKS y resolver tráfico TCP/DNS.
+  - Soporta cancelación asíncrona y reconexión ante caídas.
+
+#### 2. `ITlsService.cs` / `TlsService.cs`
+- **Función:** Puente local SSL/TLS y spoofing de SNI.
+- **Detalles clave:**
+  - Crea un listener TCP en bucle local (`127.0.0.1`).
+  - Intercepta el tráfico del cliente y lo redirige hacia el servidor remoto a través de `SslStream` con validación personalizada o permisiva de certificados.
+  - Permite configurar versiones específicas de TLS (`TLS 1.2`, `TLS 1.3`) y nombres de servidor simulados (`SNI`) para eludir cortafuegos que inspeccionan cabeceras de red.
+
+#### 3. `ISocksProxyService.cs` / `SocksProxyService.cs`
+- **Función:** Servidor Proxy SOCKS5 local independiente y de alto rendimiento.
+- **Detalles clave:**
+  - Escucha conexiones en `127.0.0.1:1080` con un backlog ampliado para soportar ráfagas de conexiones concurrentes del modo TUN.
+  - Implementa el protocolo SOCKS5 completo: negociación de autenticación, parsing de direcciones IPv4, nombres de dominio (FQDN) e IPv6.
+  - Une cada socket local con un canal en el servidor SSH remoto y transfiere datos bidireccionalmente con buffers optimizados.
+
+#### 4. `ITunVpnService.cs` / `TunVpnService.cs`
+- **Función:** Motor de VPN global a nivel de interfaz de red virtual.
+- **Detalles clave:**
+  - Comprueba privilegios de administrador con `WindowsPrincipal`.
+  - Localiza y arranca `tun2socks.exe` junto a la biblioteca de controladores virtuales `wintun.dll`.
+  - Configura mediante llamadas a `netsh` y `route` las IPs, métricas y servidores DNS del adaptador virtual.
+  - Inyecta rutas `/1` (`0.0.0.0/1` y `128.0.0.0/1`) para redirigir todo el tráfico IPv4 del sistema a través de la VPN sin perder las rutas físicas del gateway original.
+  - Contiene el método estático `EmergencyCleanup()` para garantizar que, incluso si la app se cierra de forma abrupta, no queden rutas huérfanas ni el usuario pierda acceso a internet.
+
+#### 5. `IDnsProxyService.cs` / `DnsProxyService.cs`
+- **Función:** Servidor Proxy DNS UDP-a-TCP en puerto 53 local (`127.0.0.1:53`).
+- **Detalles clave:**
+  - Resuelve el problema de que el protocolo SSH estándar no transporta datagramas UDP nativos.
+  - Recibe paquetes DNS estándar en UDP, los empaqueta con su prefijo de longitud de 2 bytes para DNS sobre TCP, los envía vía SOCKS5 al resolver configurado y retransmite la respuesta en UDP al sistema operativo.
+  - Implementa caché en memoria (`ConcurrentDictionary`) con tiempo de expiración (TTL) para acelerar las peticiones DNS recurrentes.
+  - Maneja y suprime códigos de error específicos de Winsock (como el error `10054 ICMP Port Unreachable`).
+
+#### 6. `IConfigService.cs` / `ConfigService.cs`
+- **Función:** Persistencia de configuraciones de perfiles de conexión.
+- **Detalles clave:**
+  - Guarda y carga archivos JSON en `%AppData%/miVPN/configuraciones`.
+  - Permite crear, modificar, listar y eliminar servidores favoritos.
+  - Administra el archivo `last_used.json` para recordar la última configuración utilizada.
+
+#### 7. `IHistoryService.cs` / `HistoryService.cs`
+- **Función:** Registro de historial de conexiones.
+- **Detalles clave:**
+  - Almacena eventos de sesiones de conexión en un archivo JSON en `%AppData%/miVPN/history.json`.
+
+#### 8. `ILoggerService.cs` / `LoggerService.cs`
+- **Función:** Servicio centralizado de registro y depuración.
+- **Detalles clave:**
+  - Emite eventos con marca de tiempo hacia la interfaz gráfica (`Form1`) para mostrar logs de diagnóstico en tiempo real en la consola de la aplicación.
+
+---
+
+### 📁 Binarios y Recursos Externos (`Assets/` / `bin/`)
+- **`tun2socks.exe`:** Binario encargado de leer los paquetes IP del adaptador TUN y convertirlos en peticiones hacia el servidor SOCKS5.
+- **`wintun.dll`:** Controlador de alta velocidad para adaptadores de red virtuales TUN de nivel 3 en Windows (desarrollado originalmente por el proyecto WireGuard).
