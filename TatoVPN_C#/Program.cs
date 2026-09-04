@@ -83,6 +83,13 @@ static class Program
 
         try
         {
+            // Auto-curación preventiva: si el sistema se reinició o la app crasheó dejando DNS en 127.0.0.1, repararlo inmediatamente
+            DnsManagerService.EmergencyRestoreDns();
+        }
+        catch { }
+
+        try
+        {
             ApplicationConfiguration.Initialize();
             Application.Run(new Form1());
         }

@@ -18,8 +18,12 @@ public class TunVpnService : ITunVpnService
     private string? _addedGatewayIp;
     private int _addedInterfaceIndex = -1;
     private bool _isRunning;
+    private volatile bool _isExplicitStopping;
+
+    public event Action<string>? OnTunProcessExited;
 
     public bool IsRunning => _isRunning;
+    public bool IsProcessAlive => !_isExplicitStopping && _tunProcess != null && !_tunProcess.HasExited;
 
     public TunVpnService(
         ILoggerService logger, 
@@ -55,6 +59,7 @@ public class TunVpnService : ITunVpnService
         }
 
         await StopAsync();
+        _isExplicitStopping = false;
 
         // 0. Limpiar cualquier proceso tun2socks huérfano antes de iniciar
         KillAllTun2SocksProcesses();
@@ -118,6 +123,15 @@ public class TunVpnService : ITunVpnService
         };
 
         _tunProcess = new Process { StartInfo = psi };
+        _tunProcess.EnableRaisingEvents = true;
+        _tunProcess.Exited += (s, e) =>
+        {
+            if (!_isExplicitStopping && _isRunning)
+            {
+                _logger.Log($"⚠️ Proceso tun2socks.exe finalizó inesperadamente (código: {_tunProcess?.ExitCode ?? -1}).");
+                OnTunProcessExited?.Invoke("tun2socks se cerró de forma imprevista");
+            }
+        };
 
         try
         {
@@ -168,6 +182,7 @@ public class TunVpnService : ITunVpnService
 
     public async Task StopAsync()
     {
+        _isExplicitStopping = true;
         _logger.Log("🧹 Limpiando rutas y restaurando red original...");
 
         // 1. Eliminar rutas globales /1 (de manera directa/silenciosa ya que puede que no existan previamente)

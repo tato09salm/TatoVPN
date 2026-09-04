@@ -16,4 +16,9 @@ public interface IDnsManagerService : IDisposable
     /// Restaura la configuración DNS original (estática o DHCP) en los adaptadores físicos modificados.
     /// </summary>
     void RestorePhysicalAdaptersDns();
+
+    /// <summary>
+    /// Escanea los adaptadores de red y repara de inmediato cualquiera que haya quedado bloqueado con 127.0.0.1.
+    /// </summary>
+    void AutoHealStuckDns();
 }

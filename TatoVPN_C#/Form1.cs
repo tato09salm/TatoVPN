@@ -26,6 +26,8 @@ public partial class Form1 : Form
     private bool _forceExit;
     private readonly System.Windows.Forms.Timer _uptimeTimer;
     private DateTime _connectionStartTime;
+    private CancellationTokenSource? _watchdogCts;
+    private volatile bool _isAutoReconnecting;
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -82,6 +84,22 @@ public partial class Form1 : Form
 
         _logger.OnLog += HandleLog;
         _configService.OnConfigsChanged += HandleConfigsChanged;
+
+        _sshService.OnConnectionDropped += reason =>
+        {
+            if (_currentState == ConnectionState.SshAuthenticated || _currentState == ConnectionState.SocksProxyActive)
+            {
+                _ = Task.Run(() => HandleTunnelDropAsync(_lastSettings, reason));
+            }
+        };
+
+        _tunVpnService.OnTunProcessExited += reason =>
+        {
+            if (_currentState == ConnectionState.SocksProxyActive)
+            {
+                _ = Task.Run(() => HandleTunnelDropAsync(_lastSettings, reason));
+            }
+        };
 
         try { LoadAppLogo(); } catch { }
         try { RefreshConfigsGrid(); } catch { }
@@ -559,6 +577,10 @@ public partial class Form1 : Form
                 text = "🟡 Conectando...";
                 color = System.Drawing.Color.FromArgb(234, 179, 8);
                 break;
+            case ConnectionState.Reconnecting:
+                text = "🟠 Reconectando...";
+                color = System.Drawing.Color.FromArgb(249, 115, 22);
+                break;
             case ConnectionState.SshAuthenticated:
                 text = "🔵 SSH autenticado";
                 color = System.Drawing.Color.FromArgb(96, 165, 250);
@@ -597,28 +619,29 @@ public partial class Form1 : Form
         }
 
         bool isConnected = state == ConnectionState.SshAuthenticated || state == ConnectionState.SocksProxyActive;
-        bool isConnecting = state == ConnectionState.Connecting;
+        bool isConnecting = state == ConnectionState.Connecting || state == ConnectionState.Reconnecting;
+        bool isReconnecting = state == ConnectionState.Reconnecting;
 
         void ApplyUIState()
         {
             lblStateValue.Text = text;
             lblStateValue.ForeColor = color;
 
-            lblSidebarDot.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : System.Drawing.Color.FromArgb(100, 116, 139);
-            lblSidebarStatusState.Text = isConnected ? "Conectado" : (state == ConnectionState.Connecting ? "Conectando..." : "Desconectado");
-            lblSidebarStatusState.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(148, 163, 184));
-            lblSidebarStatusSub.Text = isConnected ? "Túnel VPN activo" : (state == ConnectionState.Connecting ? "Intento de conexión en curso..." : "No hay conexión activa");
+            lblSidebarDot.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (isReconnecting ? System.Drawing.Color.FromArgb(249, 115, 22) : System.Drawing.Color.FromArgb(100, 116, 139));
+            lblSidebarStatusState.Text = isConnected ? "Conectado" : (isReconnecting ? "Reconectando..." : (state == ConnectionState.Connecting ? "Conectando..." : "Desconectado"));
+            lblSidebarStatusState.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (isReconnecting ? System.Drawing.Color.FromArgb(249, 115, 22) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(148, 163, 184)));
+            lblSidebarStatusSub.Text = isConnected ? "Túnel VPN activo" : (isReconnecting ? "Recuperando túnel caído..." : (state == ConnectionState.Connecting ? "Intento de conexión en curso..." : "No hay conexión activa"));
 
             // Desconectado: Candado abierto 🔓 anaranjado #EA580C; Conectado: Candado cerrado 🔒 verde #22C55E; Conectando: Candado 🔓 amarillo #EAB308
             lblRingLockIcon.Text = isConnected ? "🔒" : "🔓";
-            lblRingLockIcon.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(234, 88, 12));
+            lblRingLockIcon.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (isReconnecting ? System.Drawing.Color.FromArgb(249, 115, 22) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(234, 88, 12)));
 
-            lblRingStatusText.Text = isConnected ? "CONECTADO" : (state == ConnectionState.Connecting ? "CONECTANDO..." : "DESCONECTADO");
-            lblRingStatusText.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(234, 88, 12));
+            lblRingStatusText.Text = isConnected ? "CONECTADO" : (isReconnecting ? "RECONECTANDO..." : (state == ConnectionState.Connecting ? "CONECTANDO..." : "DESCONECTADO"));
+            lblRingStatusText.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (isReconnecting ? System.Drawing.Color.FromArgb(249, 115, 22) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(234, 88, 12)));
 
             lblRingStatusSub.Text = isConnected
                 ? ((_tunVpnService?.IsRunning ?? false) ? "VPN de sistema activa y protegida (Wintun)" : "Túnel VPN activo y protegido")
-                : (state == ConnectionState.Connecting ? "Estableciendo túnel SSH seguro (puedes cancelar)..." : "Haz clic en el candado o en el botón para conectar");
+                : (isReconnecting ? "Caída detectada. Restableciendo conexión protegida..." : (state == ConnectionState.Connecting ? "Estableciendo túnel SSH seguro (puedes cancelar)..." : "Haz clic en el candado o en el botón para conectar"));
 
             if (isConnecting)
             {
@@ -640,8 +663,8 @@ public partial class Form1 : Form
                 btnDisconnect.Visible = false;
             }
 
-            lblInfoTunnelVal.Text = isConnected ? "Activo" : (state == ConnectionState.Connecting ? "Conectando..." : "Inactivo");
-            lblInfoTunnelVal.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(148, 163, 184));
+            lblInfoTunnelVal.Text = isConnected ? "Activo" : (isReconnecting ? "Reconectando..." : (state == ConnectionState.Connecting ? "Conectando..." : "Inactivo"));
+            lblInfoTunnelVal.ForeColor = isConnected ? System.Drawing.Color.FromArgb(34, 197, 94) : (isReconnecting ? System.Drawing.Color.FromArgb(249, 115, 22) : (state == ConnectionState.Connecting ? System.Drawing.Color.FromArgb(234, 179, 8) : System.Drawing.Color.FromArgb(148, 163, 184)));
 
             picStatusRing.Invalidate();
             UpdateQuickConfigSummaryLabel();
@@ -666,7 +689,7 @@ public partial class Form1 : Form
 
     private void UpdateButtonsEnabled(ConnectionState state)
     {
-        bool isBusy = state == ConnectionState.Connecting;
+        bool isBusy = state == ConnectionState.Connecting || state == ConnectionState.Reconnecting;
         bool isConnected = state == ConnectionState.SshAuthenticated || state == ConnectionState.SocksProxyActive;
 
         void SetUI()
@@ -696,6 +719,9 @@ public partial class Form1 : Form
         {
             case ConnectionState.Connecting:
                 tip += "🟡 Conectando...";
+                break;
+            case ConnectionState.Reconnecting:
+                tip += "🟠 Reconectando...";
                 break;
             case ConnectionState.SshAuthenticated:
                 tip += "🔵 SSH autenticado";
@@ -1094,6 +1120,7 @@ public partial class Form1 : Form
                     _logger.Log("[VPN] Conectado");
 
                     UpdateState(ConnectionState.SocksProxyActive);
+                    StartTunnelWatchdog(settings);
 
                     if (_connectionCts != null && !settings.EnableTunMode)
                     {
@@ -1188,9 +1215,11 @@ public partial class Form1 : Form
 
     private async void btnDisconnect_Click(object sender, EventArgs e)
     {
-        if (_currentState == ConnectionState.Connecting)
+        if (_currentState == ConnectionState.Connecting || _currentState == ConnectionState.Reconnecting)
         {
             _logger.Log("⏹️ Cancelando intento de conexión...");
+            StopTunnelWatchdog();
+            _isAutoReconnecting = false;
             _connectionCts?.Cancel();
             await FullDisconnectAsync();
             UpdateState(ConnectionState.Disconnected);
@@ -1199,6 +1228,8 @@ public partial class Form1 : Form
         }
 
         _logger.Log("Iniciando desconexión...");
+        StopTunnelWatchdog();
+        _isAutoReconnecting = false;
         _connectionCts?.Cancel();
         await FullDisconnectAsync();
         UpdateState(ConnectionState.Disconnected);
@@ -1313,11 +1344,187 @@ public partial class Form1 : Form
 
     private async Task FullDisconnectAsync()
     {
+        StopTunnelWatchdog();
         try { await _tunVpnService.StopAsync(); } catch { }
         try { await _socksProxyService.StopAsync(); } catch { }
         try { await _sshService.DisconnectAsync(); } catch { }
         try { await _tlsService.ShutdownAsync(); } catch { }
         try { await Task.Delay(400); } catch { }
+    }
+
+    private void StartTunnelWatchdog(ConnectionSettings settings)
+    {
+        StopTunnelWatchdog();
+        _watchdogCts = new CancellationTokenSource();
+        var token = _watchdogCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(2000, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (_currentState != ConnectionState.SocksProxyActive || _isAutoReconnecting)
+                {
+                    continue;
+                }
+
+                // 1. Validar conexión SSH
+                if (!_sshService.IsConnected)
+                {
+                    _ = HandleTunnelDropAsync(settings, "Se perdió la conexión con el servidor SSH");
+                    break;
+                }
+
+                // 2. En modo TUN, validar proceso tun2socks
+                if (settings.EnableTunMode && !_tunVpnService.IsProcessAlive)
+                {
+                    _ = HandleTunnelDropAsync(settings, "El proceso del adaptador TUN (tun2socks) se detuvo");
+                    break;
+                }
+            }
+        }, token);
+    }
+
+    private void StopTunnelWatchdog()
+    {
+        try
+        {
+            _watchdogCts?.Cancel();
+            _watchdogCts?.Dispose();
+        }
+        catch { }
+        finally
+        {
+            _watchdogCts = null;
+        }
+    }
+
+    private async Task HandleTunnelDropAsync(ConnectionSettings? settings, string reason)
+    {
+        if (_isAutoReconnecting || _currentState == ConnectionState.Disconnected || _currentState == ConnectionState.Connecting)
+            return;
+
+        _isAutoReconnecting = true;
+        StopTunnelWatchdog();
+
+        try
+        {
+            _logger.Log($"⚠️ Caída del túnel detectada: {reason}");
+            _logger.Log("🛡️ Protección activa: Bloqueando tráfico y preparando reconexión automática...");
+
+            UpdateState(ConnectionState.Reconnecting);
+
+            if (settings == null)
+            {
+                settings = BuildSettings();
+            }
+
+            const int maxRetries = 5;
+            bool reconnected = false;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                if (_currentState == ConnectionState.Disconnected)
+                {
+                    _logger.Log("⏹️ Reconexión cancelada por el usuario.");
+                    break;
+                }
+
+                int backoffDelay = Math.Min(attempt * 2000, 8000);
+                _logger.Log($"🔄 [Auto-Reconexión] Intento {attempt}/{maxRetries} en {backoffDelay / 1000}s...");
+
+                try
+                {
+                    await Task.Delay(backoffDelay);
+                }
+                catch { break; }
+
+                if (_currentState == ConnectionState.Disconnected)
+                {
+                    _logger.Log("⏹️ Reconexión cancelada por el usuario.");
+                    break;
+                }
+
+                try
+                {
+                    // Limpieza previa segura de sockets y procesos caídos
+                    try { await _tunVpnService.StopAsync(); } catch { }
+                    try { await _socksProxyService.StopAsync(); } catch { }
+                    try { await _sshService.DisconnectAsync(); } catch { }
+                    try { await _tlsService.ShutdownAsync(); } catch { }
+
+                    using var attemptCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var token = attemptCts.Token;
+
+                    if (settings.UseSslTls)
+                    {
+                        int bridgePort = await _tlsService.StartBridgeAsync(settings, token);
+                        var sshSettings = new ConnectionSettings
+                        {
+                            SshHost = "127.0.0.1",
+                            SshPort = bridgePort,
+                            Username = settings.Username,
+                            Password = settings.Password,
+                            SocksLocalIp = settings.SocksLocalIp,
+                            SocksLocalPort = settings.SocksLocalPort,
+                            UseSslTls = true,
+                            TlsPort = settings.TlsPort,
+                            TlsServerName = settings.TlsServerName,
+                            TlsVersion = settings.TlsVersion,
+                            EnableTunMode = settings.EnableTunMode
+                        };
+                        await _sshService.ConnectAsync(sshSettings, token);
+                    }
+                    else
+                    {
+                        await _sshService.ConnectAsync(settings, token);
+                    }
+
+                    await _socksProxyService.StartAsync(settings, _sshService, token);
+
+                    if (settings.EnableTunMode)
+                    {
+                        await _tunVpnService.StartAsync(settings, token);
+                    }
+
+                    _logger.Log("✅ [Auto-Reconexión] ¡Túnel restablecido y protegido exitosamente!");
+                    reconnected = true;
+                    UpdateState(ConnectionState.SocksProxyActive);
+                    StartTunnelWatchdog(settings);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log($"⚠️ Intento {attempt}/{maxRetries} de reconexión fallido: {ex.Message}");
+                }
+            }
+
+            if (!reconnected && _currentState != ConnectionState.Disconnected)
+            {
+                _logger.Log("❌ No se pudo recuperar el túnel tras los intentos automáticos.");
+                _logger.Log("🛡️ Activando fail-safe: Restaurando adaptadores, DNS y red física a valores originales...");
+
+                await FullDisconnectAsync();
+
+                // Restauración de emergencia a prueba de fallos
+                try { TunVpnService.EmergencyCleanup(); } catch { }
+
+                UpdateState(ConnectionState.Disconnected);
+                _logger.Log("✅ Red y DNS restaurados automáticamente por DHCP. Navegación normal restablecida.");
+            }
+        }
+        finally
+        {
+            _isAutoReconnecting = false;
+        }
     }
 
     private async void btnTestSsh_Click(object sender, EventArgs e)

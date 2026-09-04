@@ -6,6 +6,7 @@ namespace miVPN.Services.Interfaces;
 public interface ISshService : IDisposable
 {
     bool IsConnected { get; }
+    event Action<string>? OnConnectionDropped;
     Task ConnectAsync(ConnectionSettings settings, CancellationToken cancellationToken = default);
     Task DisconnectAsync();
     Task<bool> TestConnectionAsync(ConnectionSettings settings, CancellationToken cancellationToken = default);

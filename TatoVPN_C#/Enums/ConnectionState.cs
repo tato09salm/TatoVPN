@@ -6,5 +6,6 @@ public enum ConnectionState
     Connecting,
     SshAuthenticated,
     SocksProxyActive,
+    Reconnecting,
     Error
 }

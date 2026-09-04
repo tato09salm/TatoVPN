@@ -12,8 +12,11 @@ public class SshService : ISshService
     private ForwardedPortDynamic? _dynamicPortForward;
     private readonly ILoggerService _logger;
     private static readonly MethodInfo? _directStreamMethod;
+    private volatile bool _isExplicitDisconnect;
 
-    public bool IsConnected => _sshClient?.IsConnected ?? false;
+    public event Action<string>? OnConnectionDropped;
+
+    public bool IsConnected => !_isExplicitDisconnect && (_sshClient?.IsConnected ?? false);
     public bool IsDynamicPortStarted => _dynamicPortForward?.IsStarted ?? false;
 
     static SshService()
@@ -142,7 +145,19 @@ public class SshService : ISshService
                 catch { }
             };
 
+            _isExplicitDisconnect = false;
             _sshClient = new SshClient(connectionInfo);
+            _sshClient.KeepAliveInterval = TimeSpan.FromSeconds(5);
+
+            _sshClient.ErrorOccurred += (s, e) =>
+            {
+                if (!_isExplicitDisconnect)
+                {
+                    string err = e.Exception?.Message ?? "Error imprevisto en socket SSH";
+                    _logger.Log($"⚠️ Error en socket SSH detectado: {err}");
+                    OnConnectionDropped?.Invoke(err);
+                }
+            };
 
             _sshClient.HostKeyReceived += (s, e) =>
             {
@@ -204,6 +219,7 @@ public class SshService : ISshService
 
     public async Task DisconnectAsync()
     {
+        _isExplicitDisconnect = true;
         await Task.Run(() =>
         {
             StopDynamicPortForwarding();
