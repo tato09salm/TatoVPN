@@ -59,13 +59,13 @@ public class FirewallService : IFirewallService
             {
                 dynamic rules = fwPolicy.Rules;
 
-                // 1. Regla de Bloqueo de UDP saliente (excluyendo el puerto 53 para resolución DNS local)
-                // Al bloquear los rangos 1-52 y 54-65535, se neutraliza QUIC (UDP 443) y WebRTC UDP
+                // 1. Regla de Bloqueo de UDP saliente (excluyendo puertos 53 y 67-68 para DHCP)
+                // Al bloquear los rangos 1-52, 54-66 y 69-65535, se neutraliza QUIC (UDP 443) y WebRTC UDP
                 dynamic udpBlockRule = Activator.CreateInstance(ruleType)!;
                 udpBlockRule.Name = RuleNameBlockUdp;
                 udpBlockRule.Description = "TatoVPN Security: Bloqueo de evasión UDP y mitigación QUIC/HTTP3";
                 udpBlockRule.Protocol = NET_FW_IP_PROTOCOL_UDP;
-                udpBlockRule.RemotePorts = "1-52,54-65535";
+                udpBlockRule.RemotePorts = "1-52,54-66,69-65535";
                 udpBlockRule.Direction = NET_FW_RULE_DIR_OUT;
                 udpBlockRule.Action = NET_FW_ACTION_BLOCK;
                 udpBlockRule.Profiles = NET_FW_PROFILE2_ALL;
@@ -79,8 +79,8 @@ public class FirewallService : IFirewallService
                 dnsAllowRule.Name = RuleNameAllowLocalDns;
                 dnsAllowRule.Description = "TatoVPN Security: Permitir resolución DNS local en loopback";
                 dnsAllowRule.Protocol = NET_FW_IP_PROTOCOL_UDP;
-                dnsAllowRule.RemotePorts = "53";
-                dnsAllowRule.RemoteAddresses = "127.0.0.1,10.255.0.1,10.255.0.2";
+                dnsAllowRule.RemotePorts = "53,67,68";
+                dnsAllowRule.RemoteAddresses = "127.0.0.1,10.255.0.1,10.255.0.2,255.255.255.255";
                 dnsAllowRule.Direction = NET_FW_RULE_DIR_OUT;
                 dnsAllowRule.Action = NET_FW_ACTION_ALLOW;
                 dnsAllowRule.Profiles = NET_FW_PROFILE2_ALL;
@@ -92,7 +92,7 @@ public class FirewallService : IFirewallService
                 Marshal.ReleaseComObject(rules);
 
                 _rulesApplied = true;
-                _logger.Log("🛡️ Reglas de Firewall COM aplicadas: UDP/QUIC saliente mitigado (puerto 53 local protegido).");
+                _logger.Log("🛡️ Reglas de Firewall COM aplicadas: UDP/QUIC saliente mitigado (puerto 53 y DHCP protegidos).");
                 return true;
             }
             finally
@@ -132,24 +132,44 @@ public class FirewallService : IFirewallService
         try
         {
             Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-            if (policyType == null) return;
-
-            dynamic? fwPolicy = Activator.CreateInstance(policyType);
-            if (fwPolicy == null) return;
-
-            try
+            if (policyType != null)
             {
-                dynamic rules = fwPolicy.Rules;
-
-                try { rules.Remove(RuleNameBlockUdp); } catch { }
-                try { rules.Remove(RuleNameAllowLocalDns); } catch { }
-
-                Marshal.ReleaseComObject(rules);
+                dynamic? fwPolicy = Activator.CreateInstance(policyType);
+                if (fwPolicy != null)
+                {
+                    try
+                    {
+                        dynamic rules = fwPolicy.Rules;
+                        try { rules.Remove(RuleNameBlockUdp); } catch { }
+                        try { rules.Remove(RuleNameAllowLocalDns); } catch { }
+                        Marshal.ReleaseComObject(rules);
+                    }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(fwPolicy);
+                    }
+                }
             }
-            finally
+        }
+        catch { }
+
+        // Fallback robusto con netsh para garantizar el borrado incluso si falla COM
+        RunNetshDirect($"advfirewall firewall delete rule name=\"{RuleNameBlockUdp}\"");
+        RunNetshDirect($"advfirewall firewall delete rule name=\"{RuleNameAllowLocalDns}\"");
+    }
+
+    private static void RunNetshDirect(string arguments)
+    {
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                Marshal.ReleaseComObject(fwPolicy);
-            }
+                FileName = "netsh",
+                Arguments = arguments,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            proc?.WaitForExit(3000);
         }
         catch { }
     }
