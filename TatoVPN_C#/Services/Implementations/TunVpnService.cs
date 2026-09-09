@@ -150,17 +150,23 @@ public class TunVpnService : ITunVpnService
             throw new InvalidOperationException($"El proceso tun2socks finalizó inesperadamente con código {_tunProcess.ExitCode}.");
         }
 
-        // Obtener la interfaz Wintun y su índice en Windows
-        var (actualAdapterName, tatoVpnIfIndex) = GetWintunInterfaceInfo();
+        // Obtener el nombre de la interfaz Wintun
+        var (actualAdapterName, _) = GetWintunInterfaceInfo();
 
         // Habilitar la interfaz si estaba previamente desactivada
         try { RunCommandDirect("netsh", $"interface set interface name=\"{actualAdapterName}\" admin=enabled"); } catch { }
+
+        // Esperar a que el sistema la reconozca como habilitada
+        await Task.Delay(1000, cancellationToken);
 
         // 10. Configurar IP estática, Gateway y DNS apuntando EXCLUSIVAMENTE a 127.0.0.1 (Loopback)
         RunCommandDirect("netsh", $"interface ipv4 set address name=\"{actualAdapterName}\" static 10.255.0.2 255.255.255.0 gateway=10.255.0.1 gwmetric=1");
         RunCommandDirect("netsh", $"interface ipv4 set dnsservers name=\"{actualAdapterName}\" static 127.0.0.1 primary validate=no");
         RunCommandDirect("netsh", $"interface ipv4 set interface name=\"{actualAdapterName}\" metric=1");
         try { RunCommandDirect("netsh", $"interface ipv6 set interface name=\"{actualAdapterName}\" admin=disabled"); } catch { }
+
+        // Obtener el índice en Windows AHORA que está habilitada y configurada
+        var (_, tatoVpnIfIndex) = GetWintunInterfaceInfo();
 
         // 11. Redirigir todo el tráfico global IPv4 de Windows al adaptador TUN mediante subredes /1
         string routeCmd0 = tatoVpnIfIndex > 0
@@ -171,11 +177,11 @@ public class TunVpnService : ITunVpnService
             ? $"add 128.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1 if {tatoVpnIfIndex}"
             : $"add 128.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1";
 
-        RunCommandDirect("route", routeCmd0);
-        RunCommandDirect("route", routeCmd128);
+        RunCommand("route", routeCmd0);
+        RunCommand("route", routeCmd128);
 
         // Flush DNS
-        RunCommandDirect("ipconfig", "/flushdns");
+        RunCommand("ipconfig", "/flushdns");
 
         _isRunning = true;
     }
