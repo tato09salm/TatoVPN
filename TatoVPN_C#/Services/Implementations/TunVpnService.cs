@@ -114,7 +114,7 @@ public class TunVpnService : ITunVpnService
         var psi = new ProcessStartInfo
         {
             FileName = tun2socksPath,
-            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --tcp-auto-tuning --tcp-rcvbuf 64k --tcp-sndbuf 64k --udp-timeout 1s --loglevel silent",
+            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --tcp-auto-tuning --tcp-rcvbuf 4m --tcp-sndbuf 4m --udp-timeout 1s --loglevel silent",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = false,
