@@ -65,7 +65,7 @@ public class FirewallService : IFirewallService
                 udpBlockRule.Name = RuleNameBlockUdp;
                 udpBlockRule.Description = "TatoVPN Security: Bloqueo de evasión UDP y mitigación QUIC/HTTP3";
                 udpBlockRule.Protocol = NET_FW_IP_PROTOCOL_UDP;
-                udpBlockRule.RemotePorts = "1-52,54-66,69-65535";
+                udpBlockRule.RemotePorts = "1-52,54-66,69-545,548-65535";
                 udpBlockRule.Direction = NET_FW_RULE_DIR_OUT;
                 udpBlockRule.Action = NET_FW_ACTION_BLOCK;
                 udpBlockRule.Profiles = NET_FW_PROFILE2_ALL;
@@ -131,6 +131,34 @@ public class FirewallService : IFirewallService
     {
         try
         {
+            // Intento 1: Netsh (más confiable y directo)
+            try
+            {
+                using var proc1 = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall delete rule name=\"{RuleNameBlockUdp}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                proc1?.WaitForExit(2000);
+            }
+            catch { }
+
+            try
+            {
+                using var proc2 = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall delete rule name=\"{RuleNameAllowLocalDns}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                proc2?.WaitForExit(2000);
+            }
+            catch { }
+
+            // Intento 2: COM Interop
             Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
             if (policyType != null)
             {
