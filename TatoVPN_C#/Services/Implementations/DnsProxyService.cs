@@ -72,6 +72,14 @@ public class DnsProxyService : IDnsProxyService
             _logger.Log("🌐 Proxy DNS UDP-a-TCP iniciado en puerto 53 (Loopback 127.0.0.1:53 activo).");
 
             _ = Task.Run(() => ListenUdpLoopAsync(token), token);
+            
+            // Pre-calentar la conexión DNS multiplexada para eliminar el retraso (lag) inicial al navegar
+            _ = Task.Run(async () => {
+                try {
+                    await Task.Delay(500, token);
+                    await EnsureConnectionAsync(token);
+                } catch { }
+            }, token);
         }
         catch (Exception ex)
         {

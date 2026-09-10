@@ -65,7 +65,7 @@ public class FirewallService : IFirewallService
                 udpBlockRule.Name = RuleNameBlockUdp;
                 udpBlockRule.Description = "TatoVPN Security: Bloqueo de evasión UDP y mitigación QUIC/HTTP3";
                 udpBlockRule.Protocol = NET_FW_IP_PROTOCOL_UDP;
-                udpBlockRule.RemotePorts = "1-52,54-65535";
+                udpBlockRule.RemotePorts = "1-52,54-66,69-545,548-65535";
                 udpBlockRule.Direction = NET_FW_RULE_DIR_OUT;
                 udpBlockRule.Action = NET_FW_ACTION_BLOCK;
                 udpBlockRule.Profiles = NET_FW_PROFILE2_ALL;

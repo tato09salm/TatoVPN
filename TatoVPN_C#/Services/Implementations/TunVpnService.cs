@@ -109,12 +109,12 @@ public class TunVpnService : ITunVpnService
             try { File.Copy(wintunPath, targetWintun, true); } catch { }
         }
 
-        // 8. Iniciar proceso tun2socks con auto-tuning TCP y buffers optimizados de 4MB
+        // 8. Iniciar proceso tun2socks con configuración óptima para evitar retrasos iniciales
         string proxyUrl = $"socks5://{settings.SocksLocalIp}:{settings.SocksLocalPort}";
         var psi = new ProcessStartInfo
         {
             FileName = tun2socksPath,
-            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --tcp-auto-tuning --tcp-rcvbuf 64k --tcp-sndbuf 64k --udp-timeout 1s --loglevel silent",
+            Arguments = $"--device tun://TatoVPN --proxy {proxyUrl} --loglevel silent",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = false,
