@@ -131,6 +131,34 @@ public class FirewallService : IFirewallService
     {
         try
         {
+            // Intento 1: Netsh (más confiable y directo)
+            try
+            {
+                using var proc1 = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall delete rule name=\"{RuleNameBlockUdp}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                proc1?.WaitForExit(2000);
+            }
+            catch { }
+
+            try
+            {
+                using var proc2 = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall delete rule name=\"{RuleNameAllowLocalDns}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                proc2?.WaitForExit(2000);
+            }
+            catch { }
+
+            // Intento 2: COM Interop
             Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
             if (policyType == null) return;
 

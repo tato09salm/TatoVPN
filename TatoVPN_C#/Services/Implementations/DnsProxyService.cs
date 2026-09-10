@@ -19,6 +19,16 @@ public class DnsProxyService : IDnsProxyService
     // Cache simple en memoria: (QueryBytesMinusTxId) -> (ResponseBytesMinusTxId, ExpiryTime)
     private readonly ConcurrentDictionary<string, (byte[] Response, DateTime Expiry)> _dnsCache = new();
 
+    // Campos para multiplexación TCP persistente
+    private TcpClient? _tcpClient;
+    private NetworkStream? _tcpStream;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly ConcurrentDictionary<ushort, TaskCompletionSource<byte[]>> _pendingRequests = new();
+    private CancellationTokenSource? _connCts;
+    private int _dnsServerIndex = 0;
+    private readonly string[] _dnsServers = new[] { "1.1.1.1", "8.8.8.8", "1.0.0.1", "8.8.4.4" };
+    private int _nextTxId = 1;
+
     public bool IsRunning => _isRunning;
 
     public DnsProxyService(ILoggerService logger)
@@ -149,8 +159,8 @@ public class DnsProxyService : IDnsProxyService
             }
         }
 
-        // 2. Consultar DNS sobre TCP usando el Túnel SOCKS5/SSH
-        byte[]? responseBuffer = await ForwardDnsQueryOverTcpAsync(queryBuffer, cancellationToken);
+        // 2. Consultar DNS sobre TCP usando el Túnel SOCKS5/SSH (Multiplexado)
+        byte[]? responseBuffer = await ForwardDnsQueryOverTcpAsync(queryBuffer, txId, cancellationToken);
 
         if (responseBuffer != null && responseBuffer.Length >= 12)
         {
@@ -209,52 +219,145 @@ public class DnsProxyService : IDnsProxyService
         return resp;
     }
 
-    private async Task<byte[]?> ForwardDnsQueryOverTcpAsync(byte[] queryBuffer, CancellationToken cancellationToken)
+    private async Task EnsureConnectionAsync(CancellationToken token)
     {
-        string[] dnsServers = new[] { "1.1.1.1", "8.8.8.8", "1.0.0.1" };
-
-        foreach (var dnsIp in dnsServers)
+        if (_tcpClient != null && _tcpClient.Connected) return;
+        
+        await _writeLock.WaitAsync(token);
+        try
         {
-            var conn = await ConnectTcpDnsOverSocks5Async(dnsIp, 53, cancellationToken);
-            if (conn == null) continue;
-
-            using var tcpClient = conn.Value.Client;
-            using var stream = conn.Value.Stream;
-
-            try
+            if (_tcpClient != null && _tcpClient.Connected) return;
+            
+            DisconnectInternal();
+            
+            for (int attempts = 0; attempts < _dnsServers.Length; attempts++)
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                cts.CancelAfter(3500);
-
-                // Marco de longitud de 2 bytes para DNS sobre TCP (RFC 1035)
-                byte[] tcpQuery = new byte[2 + queryBuffer.Length];
-                tcpQuery[0] = (byte)((queryBuffer.Length >> 8) & 0xFF);
-                tcpQuery[1] = (byte)(queryBuffer.Length & 0xFF);
-                Array.Copy(queryBuffer, 0, tcpQuery, 2, queryBuffer.Length);
-
-                await stream.WriteAsync(tcpQuery, 0, tcpQuery.Length, cts.Token);
-                await stream.FlushAsync(cts.Token);
-
-                // Leer longitud de 2 bytes de la respuesta
-                byte[] lenBytes = new byte[2];
-                await ReadExactAsync(stream, lenBytes, 0, 2, cts.Token);
-                int respLen = (lenBytes[0] << 8) | lenBytes[1];
-
-                if (respLen <= 0 || respLen > 65535)
-                    continue;
-
-                byte[] respBuffer = new byte[respLen];
-                await ReadExactAsync(stream, respBuffer, 0, respLen, cts.Token);
-
-                return respBuffer;
-            }
-            catch
-            {
-                // Si falla un DNS público, probar con el siguiente
+                if (token.IsCancellationRequested) break;
+                
+                string targetDns = _dnsServers[_dnsServerIndex % _dnsServers.Length];
+                _dnsServerIndex++;
+                
+                var conn = await ConnectTcpDnsOverSocks5Async(targetDns, 53, token);
+                if (conn != null)
+                {
+                    _connCts = new CancellationTokenSource();
+                    _tcpClient = conn.Value.Client;
+                    _tcpStream = conn.Value.Stream;
+                    _ = Task.Run(() => ReadLoopAsync(_connCts.Token));
+                    return;
+                }
             }
         }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
 
-        return null;
+    private void DisconnectInternal()
+    {
+        try { _connCts?.Cancel(); } catch { }
+        try { _tcpClient?.Close(); } catch { }
+        _tcpClient = null;
+        _tcpStream = null;
+        
+        foreach (var key in _pendingRequests.Keys.ToList())
+        {
+            if (_pendingRequests.TryRemove(key, out var tcs))
+            {
+                tcs.TrySetCanceled();
+            }
+        }
+    }
+
+    private async Task ReadLoopAsync(CancellationToken token)
+    {
+        var stream = _tcpStream;
+        if (stream == null) return;
+        
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                byte[] lenBytes = new byte[2];
+                await ReadExactAsync(stream, lenBytes, 0, 2, token);
+                int respLen = (lenBytes[0] << 8) | lenBytes[1];
+                
+                if (respLen <= 0 || respLen > 65535) throw new InvalidDataException("Longitud de respuesta DNS inválida");
+                
+                byte[] respBuffer = new byte[respLen];
+                await ReadExactAsync(stream, respBuffer, 0, respLen, token);
+                
+                if (respLen >= 2)
+                {
+                    ushort tcpTxId = (ushort)((respBuffer[0] << 8) | respBuffer[1]);
+                    if (_pendingRequests.TryRemove(tcpTxId, out var tcs))
+                    {
+                        tcs.TrySetResult(respBuffer);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            DisconnectInternal();
+        }
+    }
+
+    private async Task<byte[]?> ForwardDnsQueryOverTcpAsync(byte[] queryBuffer, ushort originalTxId, CancellationToken cancellationToken)
+    {
+        await EnsureConnectionAsync(cancellationToken);
+        var stream = _tcpStream;
+        if (stream == null) return null;
+
+        ushort tcpTxId = (ushort)(Interlocked.Increment(ref _nextTxId) & 0xFFFF);
+        var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingRequests[tcpTxId] = tcs;
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(4000);
+        using var reg = timeoutCts.Token.Register(() => 
+        {
+            if (_pendingRequests.TryRemove(tcpTxId, out var pending)) pending.TrySetCanceled();
+        });
+
+        // Marco de longitud de 2 bytes para DNS sobre TCP (RFC 1035)
+        byte[] tcpQuery = new byte[2 + queryBuffer.Length];
+        tcpQuery[0] = (byte)((queryBuffer.Length >> 8) & 0xFF);
+        tcpQuery[1] = (byte)(queryBuffer.Length & 0xFF);
+        Array.Copy(queryBuffer, 0, tcpQuery, 2, queryBuffer.Length);
+        
+        // Reemplazar txId por el tcpTxId para evitar colisiones en la conexión multiplexada
+        tcpQuery[2] = (byte)((tcpTxId >> 8) & 0xFF);
+        tcpQuery[3] = (byte)(tcpTxId & 0xFF);
+
+        try
+        {
+            await _writeLock.WaitAsync(cancellationToken);
+            try
+            {
+                await stream.WriteAsync(tcpQuery, 0, tcpQuery.Length, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                _writeLock.Release();
+            }
+            
+            var resp = await tcs.Task;
+            // Restaurar txId original para que el cliente UDP lo reconozca
+            if (resp != null && resp.Length >= 2)
+            {
+                resp[0] = (byte)((originalTxId >> 8) & 0xFF);
+                resp[1] = (byte)(originalTxId & 0xFF);
+            }
+            return resp;
+        }
+        catch
+        {
+            _pendingRequests.TryRemove(tcpTxId, out _);
+            return null;
+        }
     }
 
     private async Task<(TcpClient Client, NetworkStream Stream)?> ConnectTcpDnsOverSocks5Async(string targetDnsIp, int targetDnsPort, CancellationToken cancellationToken)
@@ -364,6 +467,7 @@ public class DnsProxyService : IDnsProxyService
             _udpListener = null;
         }
 
+        DisconnectInternal();
         _dnsCache.Clear();
         await Task.CompletedTask;
     }
