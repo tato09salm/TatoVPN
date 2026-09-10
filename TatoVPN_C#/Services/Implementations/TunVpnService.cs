@@ -64,35 +64,11 @@ public class TunVpnService : ITunVpnService
         // 0. Limpiar cualquier proceso tun2socks huérfano antes de iniciar
         KillAllTun2SocksProcesses();
 
-        // 1. Resolver IP del servidor SSH
-        string sshHostIp = await ResolveIpAsync(settings.SshHost);
-
-        // 2. Obtener Gateway e Interfaz de red física por defecto
-        var (gatewayIp, ifIndex) = GetDefaultGatewayAndInterfaceIndex();
-
-        // 3. Crear ruta estática directa para el servidor SSH para evitar bucles de enrutamiento (Routing Loop Bypass)
-        if (!string.IsNullOrEmpty(gatewayIp) && !IsLocalIp(sshHostIp))
-        {
-            string routeCmd = ifIndex > 0
-                ? $"add {sshHostIp} mask 255.255.255.255 {gatewayIp} metric 1 if {ifIndex}"
-                : $"add {sshHostIp} mask 255.255.255.255 {gatewayIp} metric 1";
-
-            RunCommand("route", routeCmd);
-            _addedSshHostIp = sshHostIp;
-            _addedGatewayIp = gatewayIp;
-            _addedInterfaceIndex = ifIndex;
-        }
-
-        // 4. Blindaje DNS a bajo nivel: Forzar 127.0.0.1 en adaptadores físicos mediante WMI para anular fugas multi-homed
-        _dnsManagerService.ForceLoopbackDnsOnPhysicalAdapters();
-
-        // 5. Blindaje perimetral COM: Bloquear datagramas UDP salientes (QUIC/HTTP3) en Windows Firewall
-        _firewallService.ApplyUdpContainmentRules();
-
-        // 6. Iniciar servicio de Proxy DNS UDP-a-TCP en loopback (127.0.0.1:53)
+        // 1. Iniciar servicio de Proxy DNS UDP-a-TCP en loopback (127.0.0.1:53)
+        // Esto asegura que el puerto esté escuchando antes de cualquier cambio de rutas o DNS físico.
         await _dnsProxyService.StartAsync(settings, cancellationToken);
 
-        // 7. Buscar binarios de tun2socks y wintun.dll
+        // 2. Buscar binarios de tun2socks y wintun.dll
         string tun2socksPath = GetBinaryPath("tun2socks.exe");
         string wintunPath = GetBinaryPath("wintun.dll");
 
@@ -109,7 +85,7 @@ public class TunVpnService : ITunVpnService
             try { File.Copy(wintunPath, targetWintun, true); } catch { }
         }
 
-        // 8. Iniciar proceso tun2socks con configuración óptima para evitar retrasos iniciales
+        // 3. Iniciar proceso tun2socks con configuración óptima para evitar retrasos iniciales
         string proxyUrl = $"socks5://{settings.SocksLocalIp}:{settings.SocksLocalPort}";
         var psi = new ProcessStartInfo
         {
@@ -142,7 +118,7 @@ public class TunVpnService : ITunVpnService
             throw new InvalidOperationException($"Error al iniciar tun2socks: {ex.Message}", ex);
         }
 
-        // 9. Esperar a que Windows inicialice la interfaz Wintun "TatoVPN"
+        // 4. Esperar a que Windows inicialice la interfaz Wintun "TatoVPN"
         await Task.Delay(2000, cancellationToken);
 
         if (_tunProcess.HasExited)
@@ -156,13 +132,32 @@ public class TunVpnService : ITunVpnService
         // Habilitar la interfaz si estaba previamente desactivada
         try { RunCommandDirect("netsh", $"interface set interface name=\"{actualAdapterName}\" admin=enabled"); } catch { }
 
-        // 10. Configurar IP estática, Gateway y DNS apuntando EXCLUSIVAMENTE a 127.0.0.1 (Loopback)
+        // 5. Configurar IP estática, Gateway y DNS apuntando EXCLUSIVAMENTE a 127.0.0.1 (Loopback) en el adaptador TUN
         RunCommandDirect("netsh", $"interface ipv4 set address name=\"{actualAdapterName}\" static 10.255.0.2 255.255.255.0 gateway=10.255.0.1 gwmetric=1");
         RunCommandDirect("netsh", $"interface ipv4 set dnsservers name=\"{actualAdapterName}\" static 127.0.0.1 primary validate=no");
         RunCommandDirect("netsh", $"interface ipv4 set interface name=\"{actualAdapterName}\" metric=1");
         try { RunCommandDirect("netsh", $"interface ipv6 set interface name=\"{actualAdapterName}\" admin=disabled"); } catch { }
 
-        // 11. Redirigir todo el tráfico global IPv4 de Windows al adaptador TUN mediante subredes /1
+        // 6. Resolver IP del servidor SSH
+        string sshHostIp = await ResolveIpAsync(settings.SshHost);
+
+        // 7. Obtener Gateway e Interfaz de red física por defecto
+        var (gatewayIp, ifIndex) = GetDefaultGatewayAndInterfaceIndex();
+
+        // 8. Crear ruta estática directa para el servidor SSH para evitar bucles de enrutamiento (Routing Loop Bypass)
+        if (!string.IsNullOrEmpty(gatewayIp) && !IsLocalIp(sshHostIp))
+        {
+            string routeCmd = ifIndex > 0
+                ? $"add {sshHostIp} mask 255.255.255.255 {gatewayIp} metric 1 if {ifIndex}"
+                : $"add {sshHostIp} mask 255.255.255.255 {gatewayIp} metric 1";
+
+            RunCommand("route", routeCmd);
+            _addedSshHostIp = sshHostIp;
+            _addedGatewayIp = gatewayIp;
+            _addedInterfaceIndex = ifIndex;
+        }
+
+        // 9. Redirigir todo el tráfico global IPv4 de Windows al adaptador TUN mediante subredes /1
         string routeCmd0 = tatoVpnIfIndex > 0
             ? $"add 0.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1 if {tatoVpnIfIndex}"
             : $"add 0.0.0.0 mask 128.0.0.0 10.255.0.1 metric 1";
@@ -174,8 +169,25 @@ public class TunVpnService : ITunVpnService
         RunCommandDirect("route", routeCmd0);
         RunCommandDirect("route", routeCmd128);
 
-        // Flush DNS
+        // 10. AHORA que el túnel y el enrutamiento están 100% operativos, aplicar el Blindaje DNS y Firewall
+        _dnsManagerService.ForceLoopbackDnsOnPhysicalAdapters();
+        _firewallService.ApplyUdpContainmentRules();
+
+        // 11. Limpiar caché DNS para forzar al SO y navegadores a usar la nueva ruta y DNS de inmediato
         RunCommandDirect("ipconfig", "/flushdns");
+
+        // 12. Validar que la resolución de dominios es exitosa antes de declarar la VPN operativa
+        try
+        {
+            _logger.Log("Verificando resolución de DNS por el túnel...");
+            using var timeoutCts = new CancellationTokenSource(3000);
+            await Dns.GetHostAddressesAsync("google.com", timeoutCts.Token);
+            _logger.Log("✅ Resolución DNS confirmada.");
+        }
+        catch
+        {
+            _logger.Log("⚠️ Advertencia: La resolución inicial DNS tardó más de lo esperado, pero el túnel está activo.");
+        }
 
         _isRunning = true;
     }
