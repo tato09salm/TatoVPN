@@ -8,33 +8,43 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-title Reparador de Red y DNS - TatoVPN
+title Reparador de Red, Rutas y DNS - TatoVPN
 cls
 echo ================================================================
-echo         REPARANDO CONEXION WI-FI Y SERVIDORES DNS
+echo         REPARANDO CONEXION, RUTAS Y SERVIDORES DNS
 echo ================================================================
 echo.
-echo [1/5] Restaurando configuracion automatica (DHCP) en Wi-Fi...
-netsh interface ipv4 set dnsservers name="Wi-Fi" source=dhcp
-netsh interface ipv6 set dnsservers name="Wi-Fi" source=dhcp
 
-echo [2/5] Restaurando adaptadores Ethernet secundarios...
+echo [1/6] Cerrando procesos huerfanos de tun2socks...
+taskkill /f /im tun2socks.exe >nul 2>&1
+
+echo [2/6] Eliminando rutas de enrutamiento huerfanas de la VPN...
+route delete 0.0.0.0 mask 128.0.0.0 >nul 2>&1
+route delete 128.0.0.0 mask 128.0.0.0 >nul 2>&1
+
+echo [3/6] Desactivando interfaz virtual TatoVPN...
+netsh interface ipv4 delete address name="TatoVPN" gateway=all >nul 2>&1
+netsh interface set interface name="TatoVPN" admin=disabled >nul 2>&1
+
+echo [4/6] Restaurando configuracion automatica (DHCP) en adaptadores...
+netsh interface ipv4 set dnsservers name="Wi-Fi" source=dhcp >nul 2>&1
+netsh interface ipv6 set dnsservers name="Wi-Fi" source=dhcp >nul 2>&1
 netsh interface ipv4 set dnsservers name="Ethernet" source=dhcp >nul 2>&1
 netsh interface ipv4 set dnsservers name="Ethernet 2" source=dhcp >nul 2>&1
 
-echo [3/5] Limpiando cache DNS de Windows...
+echo [5/6] Limpiando cache DNS de Windows...
 ipconfig /flushdns
 
-echo [4/5] Liberando y renovando direccion IP en Wi-Fi...
+echo [6/6] Liberando y renovando direccion IP en Wi-Fi...
 ipconfig /renew "Wi-Fi" >nul 2>&1
 
-echo [5/5] Eliminando archivos de respaldo huerfanos de DNS...
+echo [Extra] Eliminando archivos de respaldo huerfanos de DNS...
 if exist "%TEMP%\tatovpn_dns_backup.json" del /f /q "%TEMP%\tatovpn_dns_backup.json"
 
 echo.
 echo ================================================================
-echo   EXITO: El Wi-Fi y sus DNS han sido restaurados a automatico.
-echo   Ya puedes navegar por internet en tu red Wi-Fi.
+echo   EXITO: Rutas liberadas, adaptadores y DNS restablecidos.
+echo   Ya puedes navegar normalmente por internet.
 echo ================================================================
 echo.
 pause

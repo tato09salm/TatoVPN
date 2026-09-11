@@ -63,6 +63,7 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
+        InitializeModoServidor();
 
         _logger = new LoggerService();
         _sshService = new SshService(_logger);
@@ -1994,6 +1995,7 @@ public partial class Form1 : Form
         panelRegistro.Visible = false;
         panelConfigs.Visible = false;
         panelAcercaDe.Visible = false;
+        panelModoServidor.Visible = false;
         SetNavButtonActive(null);
 
         txtSniHostInput.Text = string.IsNullOrWhiteSpace(txtTlsSni.Text) ? "m.facebook.com" : txtTlsSni.Text.Trim();
@@ -2023,6 +2025,7 @@ public partial class Form1 : Form
         panelRegistro.Visible = false;
         panelConfigs.Visible = false;
         panelAcercaDe.Visible = false;
+        panelModoServidor.Visible = false;
         panelTunnelType.Visible = true;
         SetNavButtonActive(null);
 
@@ -2061,7 +2064,7 @@ public partial class Form1 : Form
 
     private void SetNavButtonActive(Button? activeBtn)
     {
-        var allNav = new[] { btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavRegistro, btnNavAcerca };
+        var allNav = new[] { btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavRegistro, btnNavModoServidor, btnNavAcerca };
         foreach (var b in allNav)
         {
             bool isActive = b == activeBtn;
@@ -2080,6 +2083,7 @@ public partial class Form1 : Form
         panelConfigSsh.Visible = false;
         panelRegistro.Visible = false;
         panelConfigs.Visible = false;
+        panelModoServidor.Visible = false;
         panelAcercaDe.Visible = false;
         SetNavButtonActive(btnNavInicio);
         UpdateQuickConfigSummaryLabel();
@@ -2093,6 +2097,7 @@ public partial class Form1 : Form
         panelConfigSsh.Visible = true;
         panelRegistro.Visible = false;
         panelConfigs.Visible = false;
+        panelModoServidor.Visible = false;
         panelAcercaDe.Visible = false;
         SetNavButtonActive(btnNavConfigSsh);
     }
@@ -2105,6 +2110,7 @@ public partial class Form1 : Form
         panelConfigSsh.Visible = false;
         panelRegistro.Visible = true;
         panelConfigs.Visible = false;
+        panelModoServidor.Visible = false;
         panelAcercaDe.Visible = false;
         SetNavButtonActive(btnNavRegistro);
     }
@@ -2117,9 +2123,24 @@ public partial class Form1 : Form
         panelConfigSsh.Visible = false;
         panelRegistro.Visible = false;
         panelConfigs.Visible = true;
+        panelModoServidor.Visible = false;
         panelAcercaDe.Visible = false;
         RefreshConfigsGrid();
         SetNavButtonActive(btnNavConfigs);
+    }
+
+    private void btnNavModoServidor_Click(object? sender, EventArgs e)
+    {
+        panelInicio.Visible = false;
+        panelTunnelType.Visible = false;
+        panelSniConfig.Visible = false;
+        panelConfigSsh.Visible = false;
+        panelRegistro.Visible = false;
+        panelConfigs.Visible = false;
+        panelAcercaDe.Visible = false;
+        panelModoServidor.Visible = true;
+        SetNavButtonActive(btnNavModoServidor);
+        RefreshModoServidorUi();
     }
 
     private Image? LoadYapeImage()
@@ -2150,6 +2171,7 @@ public partial class Form1 : Form
         panelConfigSsh.Visible = false;
         panelRegistro.Visible = false;
         panelConfigs.Visible = false;
+        panelModoServidor.Visible = false;
         panelAcercaDe.Visible = true;
 
         if (picAcercaYape.Image == null)
@@ -2262,6 +2284,7 @@ public partial class Form1 : Form
         if (_isCleaningUp) return;
         _isCleaningUp = true;
 
+        try { StopServerMode(); } catch { }
         try { notifyIcon1.Visible = false; } catch { }
         try { SaveLastUsedFormValues(); } catch { }
         try { _connectionCts?.Cancel(); } catch { }

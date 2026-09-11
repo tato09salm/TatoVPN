@@ -35,6 +35,7 @@ partial class Form1
         lblSidebarStatusTitle = new Label();
         panelNavButtons = new Panel();
         btnNavAcerca = new Button();
+        btnNavModoServidor = new Button();
         btnNavRegistro = new Button();
         btnNavConfigs = new Button();
         btnNavConfigSsh = new Button();
@@ -171,6 +172,7 @@ partial class Form1
         lblHistoryCount = new Label();
         lblHistoryTitle = new Label();
         panelAcercaDe = new Panel();
+        panelModoServidor = new Panel();
         panelAcercaDonationsCard = new Panel();
         lblAcercaYapeThank = new Label();
         lblAcercaYapeBadge = new Label();
@@ -234,6 +236,7 @@ partial class Form1
         panelRegistro.SuspendLayout();
         panelRegistroTop.SuspendLayout();
         panelAcercaDe.SuspendLayout();
+        panelModoServidor.SuspendLayout();
         panelAcercaDonationsCard.SuspendLayout();
         panelAcercaYapeBorder.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)picAcercaYape).BeginInit();
@@ -355,13 +358,14 @@ partial class Form1
         // panelNavButtons
         // 
         panelNavButtons.Controls.Add(btnNavAcerca);
+        panelNavButtons.Controls.Add(btnNavModoServidor);
         panelNavButtons.Controls.Add(btnNavRegistro);
         panelNavButtons.Controls.Add(btnNavConfigs);
         panelNavButtons.Controls.Add(btnNavConfigSsh);
         panelNavButtons.Controls.Add(btnNavInicio);
         panelNavButtons.Location = new Point(12, 150);
         panelNavButtons.Name = "panelNavButtons";
-        panelNavButtons.Size = new Size(211, 260);
+        panelNavButtons.Size = new Size(211, 290);
         panelNavButtons.TabIndex = 1;
         // 
         // btnNavAcerca
@@ -372,15 +376,33 @@ partial class Form1
         btnNavAcerca.FlatStyle = FlatStyle.Flat;
         btnNavAcerca.Font = new Font("Segoe UI", 9F);
         btnNavAcerca.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavAcerca.Location = new Point(0, 192);
+        btnNavAcerca.Location = new Point(0, 240);
         btnNavAcerca.Name = "btnNavAcerca";
         btnNavAcerca.Padding = new Padding(8, 0, 0, 0);
         btnNavAcerca.Size = new Size(211, 42);
-        btnNavAcerca.TabIndex = 4;
+        btnNavAcerca.TabIndex = 5;
         btnNavAcerca.Text = "ℹ️  Acerca de";
         btnNavAcerca.TextAlign = ContentAlignment.MiddleLeft;
         btnNavAcerca.UseVisualStyleBackColor = false;
         btnNavAcerca.Click += btnNavAcerca_Click;
+        // 
+        // btnNavModoServidor
+        // 
+        btnNavModoServidor.BackColor = Color.Transparent;
+        btnNavModoServidor.Cursor = Cursors.Hand;
+        btnNavModoServidor.FlatAppearance.BorderSize = 0;
+        btnNavModoServidor.FlatStyle = FlatStyle.Flat;
+        btnNavModoServidor.Font = new Font("Segoe UI", 9F);
+        btnNavModoServidor.ForeColor = Color.FromArgb(148, 163, 184);
+        btnNavModoServidor.Location = new Point(0, 192);
+        btnNavModoServidor.Name = "btnNavModoServidor";
+        btnNavModoServidor.Padding = new Padding(8, 0, 0, 0);
+        btnNavModoServidor.Size = new Size(211, 42);
+        btnNavModoServidor.TabIndex = 4;
+        btnNavModoServidor.Text = "🖥️  Modo Servidor";
+        btnNavModoServidor.TextAlign = ContentAlignment.MiddleLeft;
+        btnNavModoServidor.UseVisualStyleBackColor = false;
+        btnNavModoServidor.Click += btnNavModoServidor_Click;
         // 
         // btnNavRegistro
         // 
@@ -472,6 +494,7 @@ partial class Form1
         panelMain.Controls.Add(panelConfigSsh);
         panelMain.Controls.Add(panelConfigs);
         panelMain.Controls.Add(panelRegistro);
+        panelMain.Controls.Add(panelModoServidor);
         panelMain.Controls.Add(panelAcercaDe);
         panelMain.Dock = DockStyle.Fill;
         panelMain.Location = new Point(235, 0);
@@ -2507,6 +2530,7 @@ partial class Form1
         panelRegistroTop.PerformLayout();
         panelAcercaDe.ResumeLayout(false);
         panelAcercaDe.PerformLayout();
+        panelModoServidor.ResumeLayout(false);
         panelAcercaDonationsCard.ResumeLayout(false);
         panelAcercaYapeBorder.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)picAcercaYape).EndInit();
@@ -2526,7 +2550,9 @@ partial class Form1
     private System.Windows.Forms.Button btnNavConfigSsh;
     private System.Windows.Forms.Button btnNavConfigs;
     private System.Windows.Forms.Button btnNavRegistro;
+    private System.Windows.Forms.Button btnNavModoServidor;
     private System.Windows.Forms.Button btnNavAcerca;
+    private System.Windows.Forms.Panel panelModoServidor;
     private System.Windows.Forms.Panel panelSidebarStatusCard;
     private System.Windows.Forms.Label lblSidebarDot;
     private System.Windows.Forms.Label lblSidebarStatusTitle;
