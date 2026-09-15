@@ -1,0 +1,34 @@
+{
+  "categorias": [
+    {
+      "nombre": "Redes Sociales",
+      "icono": "📱",
+      "sitios": [
+        { "nombre": "Facebook", "dominios": ["facebook.com", "fb.com", "messenger.com"] },
+        { "nombre": "Instagram", "dominios": ["instagram.com"] },
+        { "nombre": "WhatsApp Web", "dominios": ["web.whatsapp.com", "whatsapp.net"] },
+        { "nombre": "TikTok", "dominios": ["tiktok.com", "tiktokcdn.com"] },
+        { "nombre": "Twitter/X", "dominios": ["twitter.com", "x.com", "twimg.com"] }
+      ]
+    },
+    {
+      "nombre": "Canales de Noticias Deportivas",
+      "icono": "⚽",
+      "sitios": [
+        { "nombre": "ESPN", "dominios": ["espn.com", "espn.com.pe"] },
+        { "nombre": "Fox Sports", "dominios": ["foxsports.com"] },
+        { "nombre": "Movistar Deportes", "dominios": ["movistardeportes.pe"] },
+        { "nombre": "Depor", "dominios": ["depor.com"] }
+      ]
+    },
+    {
+      "nombre": "Streaming y Entretenimiento",
+      "icono": "🎮",
+      "sitios": [
+        { "nombre": "YouTube", "dominios": ["youtube.com", "youtu.be", "googlevideo.com"] },
+        { "nombre": "Netflix", "dominios": ["netflix.com", "nflxvideo.net"] },
+        { "nombre": "Twitch", "dominios": ["twitch.tv", "ttvnw.net"] }
+      ]
+    }
+  ]
+}

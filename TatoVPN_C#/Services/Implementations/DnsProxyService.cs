@@ -10,6 +10,7 @@ namespace miVPN.Services.Implementations;
 public class DnsProxyService : IDnsProxyService
 {
     private readonly ILoggerService _logger;
+    private readonly IContentFilterService? _contentFilterService;
     private UdpClient? _udpListener;
     private CancellationTokenSource? _cts;
     private bool _isRunning;
@@ -31,9 +32,10 @@ public class DnsProxyService : IDnsProxyService
 
     public bool IsRunning => _isRunning;
 
-    public DnsProxyService(ILoggerService logger)
+    public DnsProxyService(ILoggerService logger, IContentFilterService? contentFilterService = null)
     {
         _logger = logger;
+        _contentFilterService = contentFilterService;
     }
 
     public async Task StartAsync(ConnectionSettings settings, CancellationToken cancellationToken = default)
@@ -144,6 +146,21 @@ public class DnsProxyService : IDnsProxyService
             return;
         }
 
+        if (_contentFilterService != null)
+        {
+            string domain = ExtractDomainName(queryBuffer);
+            if (!string.IsNullOrEmpty(domain) && _contentFilterService.EstaBloqueado(domain))
+            {
+                byte[] nxResp = BuildNxDomainResponse(queryBuffer);
+                try
+                {
+                    await _udpListener.SendAsync(nxResp, nxResp.Length, remoteEndPoint);
+                }
+                catch { }
+                return;
+            }
+        }
+
         string cacheKey = Convert.ToBase64String(queryBuffer, 2, queryBuffer.Length - 2);
 
         // 1. Verificar Caché en memoria
@@ -188,6 +205,31 @@ public class DnsProxyService : IDnsProxyService
         }
     }
 
+    private static string ExtractDomainName(byte[] queryBuffer)
+    {
+        try
+        {
+            if (queryBuffer.Length < 13) return string.Empty;
+            int pos = 12;
+            var parts = new System.Collections.Generic.List<string>();
+            while (pos < queryBuffer.Length)
+            {
+                int len = queryBuffer[pos];
+                if (len == 0) break;
+                if ((len & 0xC0) == 0xC0) break; // compresión
+                pos++;
+                if (pos + len > queryBuffer.Length) break;
+                parts.Add(System.Text.Encoding.UTF8.GetString(queryBuffer, pos, len));
+                pos += len;
+            }
+            return string.Join(".", parts).ToLowerInvariant();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     private static ushort GetQueryType(byte[] queryBuffer)
     {
         if (queryBuffer.Length < 15) return 0;
@@ -207,6 +249,24 @@ public class DnsProxyService : IDnsProxyService
             return (ushort)((queryBuffer[pos] << 8) | queryBuffer[pos + 1]);
         }
         return 0;
+    }
+
+    private static byte[] BuildNxDomainResponse(byte[] queryBuffer)
+    {
+        byte[] resp = (byte[])queryBuffer.Clone();
+        // QR=1, Opcode=0, AA=0, TC=0, RD=1, RA=1, RCODE=3 (NXDOMAIN) => 0x8183
+        if (resp.Length > 3)
+        {
+            resp[2] = 0x81;
+            resp[3] = 0x83;
+        }
+        // ANCOUNT = 0
+        if (resp.Length > 7) { resp[6] = 0x00; resp[7] = 0x00; }
+        // NSCOUNT = 0
+        if (resp.Length > 9) { resp[8] = 0x00; resp[9] = 0x00; }
+        // ARCOUNT = 0
+        if (resp.Length > 11) { resp[10] = 0x00; resp[11] = 0x00; }
+        return resp;
     }
 
     private static byte[] BuildEmptyDnsResponse(byte[] queryBuffer)

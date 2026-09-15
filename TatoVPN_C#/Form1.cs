@@ -60,6 +60,8 @@ public partial class Form1 : Form
     private const string RegConnectionsPath =
         @"Software\Microsoft\Windows\CurrentVersion\Internet Settings\Connections";
 
+    private readonly IContentFilterService _contentFilterService;
+
     public Form1()
     {
         InitializeComponent();
@@ -70,7 +72,17 @@ public partial class Form1 : Form
         _socksProxyService = new SocksProxyService(_logger);
         _tlsService = new TlsService(_logger);
         _configService = new ConfigService();
-        _tunVpnService = new TunVpnService(_logger);
+        
+        _contentFilterService = new ContentFilterService(_logger);
+        string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "filtro_contenido.json");
+        string catPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "categorias_filtro.json");
+        _contentFilterService.CargarCategorias(catPath);
+        _contentFilterService.CargarConfiguracion(configPath);
+        
+        var dnsProxyService = new DnsProxyService(_logger, _contentFilterService);
+        _tunVpnService = new TunVpnService(_logger, dnsProxyService);
+
+        InitializeFiltroContenido();
 
         _uptimeTimer = new System.Windows.Forms.Timer();
         _uptimeTimer.Interval = 1000;
@@ -2064,14 +2076,20 @@ public partial class Form1 : Form
 
     private void SetNavButtonActive(Button? activeBtn)
     {
-        var allNav = new[] { btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavRegistro, btnNavModoServidor, btnNavAcerca };
+        var allNav = new[] { btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavRegistro, btnNavModoServidor, btnNavAcerca, btnNavFiltro };
         foreach (var b in allNav)
         {
+            if (b == null) continue; // Por si acaso no se inicializó aún
             bool isActive = b == activeBtn;
             b.BackColor = isActive ? System.Drawing.Color.FromArgb(234, 88, 12) : System.Drawing.Color.Transparent;
             b.ForeColor = isActive ? System.Drawing.Color.White : System.Drawing.Color.FromArgb(148, 163, 184);
             b.Font = new System.Drawing.Font("Segoe UI", 9.5F,
                 isActive ? System.Drawing.FontStyle.Bold : System.Drawing.FontStyle.Regular);
+        }
+        
+        if (activeBtn != btnNavFiltro && panelFiltroContenido != null)
+        {
+            panelFiltroContenido.Visible = false;
         }
     }
 

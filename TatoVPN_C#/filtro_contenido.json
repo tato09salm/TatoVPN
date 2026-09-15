@@ -1,0 +1,11 @@
+{
+  "habilitarFiltrado": true,
+  "habilitarSNI": false,
+  "sitiosActivados": [
+    "Facebook",
+    "ESPN"
+  ],
+  "dominiosPersonalizados": [
+    "ejemplo.com"
+  ]
+}
