@@ -4,6 +4,10 @@ public interface IContentFilterService
 {
     bool HabilitarFiltrado { get; set; }
     bool HabilitarInspeccionSNI { get; set; }
+    long TotalBloqueados { get; }
+    long TotalPermitidos { get; }
+    void IncrementarBloqueados();
+    void IncrementarPermitidos();
     void CargarConfiguracion(string rutaJson);
     void GuardarConfiguracion(string rutaJson);
     bool EstaBloqueado(string dominioConsultado);

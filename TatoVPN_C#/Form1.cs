@@ -83,6 +83,7 @@ public partial class Form1 : Form
         _tunVpnService = new TunVpnService(_logger, dnsProxyService);
 
         InitializeFiltroContenido();
+        InitializeDashboard();
 
         _uptimeTimer = new System.Windows.Forms.Timer();
         _uptimeTimer.Interval = 1000;
@@ -2076,7 +2077,7 @@ public partial class Form1 : Form
 
     private void SetNavButtonActive(Button? activeBtn)
     {
-        var allNav = new[] { btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavRegistro, btnNavModoServidor, btnNavAcerca, btnNavFiltro };
+        var allNav = new[] { btnNavDashboard, btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavFiltro, btnNavRegistro, btnNavModoServidor, btnNavAcerca };
         foreach (var b in allNav)
         {
             if (b == null) continue; // Por si acaso no se inicializó aún
@@ -2090,6 +2091,12 @@ public partial class Form1 : Form
         if (activeBtn != btnNavFiltro && panelFiltroContenido != null)
         {
             panelFiltroContenido.Visible = false;
+        }
+
+        if (activeBtn != btnNavDashboard && panelDashboard != null)
+        {
+            panelDashboard.Visible = false;
+            PauseDashboardTimer();
         }
     }
 

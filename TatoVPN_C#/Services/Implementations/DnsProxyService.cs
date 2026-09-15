@@ -151,6 +151,7 @@ public class DnsProxyService : IDnsProxyService
             string domain = ExtractDomainName(queryBuffer);
             if (!string.IsNullOrEmpty(domain) && _contentFilterService.EstaBloqueado(domain))
             {
+                _contentFilterService.IncrementarBloqueados();
                 byte[] nxResp = BuildNxDomainResponse(queryBuffer);
                 try
                 {
@@ -159,6 +160,8 @@ public class DnsProxyService : IDnsProxyService
                 catch { }
                 return;
             }
+
+            _contentFilterService.IncrementarPermitidos();
         }
 
         string cacheKey = Convert.ToBase64String(queryBuffer, 2, queryBuffer.Length - 2);

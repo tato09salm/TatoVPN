@@ -41,6 +41,7 @@ partial class Form1
         btnNavConfigs = new Button();
         btnNavConfigSsh = new Button();
         btnNavInicio = new Button();
+        btnNavDashboard = new Button();
         btnTopSettings = new Button();
         btnTopFile = new Button();
         btnTunnelType = new Button();
@@ -365,9 +366,10 @@ partial class Form1
         panelNavButtons.Controls.Add(btnNavConfigs);
         panelNavButtons.Controls.Add(btnNavConfigSsh);
         panelNavButtons.Controls.Add(btnNavInicio);
+        panelNavButtons.Controls.Add(btnNavDashboard);
         panelNavButtons.Location = new Point(12, 150);
         panelNavButtons.Name = "panelNavButtons";
-        panelNavButtons.Size = new Size(256, 350);
+        panelNavButtons.Size = new Size(256, 390);
         panelNavButtons.TabIndex = 1;
         // 
         // btnNavAcerca
@@ -378,11 +380,11 @@ partial class Form1
         btnNavAcerca.FlatStyle = FlatStyle.Flat;
         btnNavAcerca.Font = new Font("Segoe UI", 9F);
         btnNavAcerca.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavAcerca.Location = new Point(0, 288);
+        btnNavAcerca.Location = new Point(0, 336);
         btnNavAcerca.Name = "btnNavAcerca";
         btnNavAcerca.Padding = new Padding(8, 0, 0, 0);
         btnNavAcerca.Size = new Size(256, 42);
-        btnNavAcerca.TabIndex = 5;
+        btnNavAcerca.TabIndex = 7;
         btnNavAcerca.Text = "ℹ️  Acerca de";
         btnNavAcerca.TextAlign = ContentAlignment.MiddleLeft;
         btnNavAcerca.UseVisualStyleBackColor = false;
@@ -396,33 +398,15 @@ partial class Form1
         btnNavModoServidor.FlatStyle = FlatStyle.Flat;
         btnNavModoServidor.Font = new Font("Segoe UI", 9F);
         btnNavModoServidor.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavModoServidor.Location = new Point(0, 240);
+        btnNavModoServidor.Location = new Point(0, 288);
         btnNavModoServidor.Name = "btnNavModoServidor";
         btnNavModoServidor.Padding = new Padding(8, 0, 0, 0);
         btnNavModoServidor.Size = new Size(256, 42);
-        btnNavModoServidor.TabIndex = 4;
+        btnNavModoServidor.TabIndex = 6;
         btnNavModoServidor.Text = "🖥️  Modo Servidor";
         btnNavModoServidor.TextAlign = ContentAlignment.MiddleLeft;
         btnNavModoServidor.UseVisualStyleBackColor = false;
         btnNavModoServidor.Click += btnNavModoServidor_Click;
-        // 
-        // btnNavFiltro
-        // 
-        btnNavFiltro.BackColor = Color.Transparent;
-        btnNavFiltro.Cursor = Cursors.Hand;
-        btnNavFiltro.FlatAppearance.BorderSize = 0;
-        btnNavFiltro.FlatStyle = FlatStyle.Flat;
-        btnNavFiltro.Font = new Font("Segoe UI", 9F);
-        btnNavFiltro.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavFiltro.Location = new Point(0, 144);
-        btnNavFiltro.Name = "btnNavFiltro";
-        btnNavFiltro.Padding = new Padding(8, 0, 0, 0);
-        btnNavFiltro.Size = new Size(256, 42);
-        btnNavFiltro.TabIndex = 6;
-        btnNavFiltro.Text = "🛡️  Filtrado de Contenido";
-        btnNavFiltro.TextAlign = ContentAlignment.MiddleLeft;
-        btnNavFiltro.UseVisualStyleBackColor = false;
-        btnNavFiltro.Click += btnNavFiltro_Click;
         // 
         // btnNavRegistro
         // 
@@ -432,15 +416,33 @@ partial class Form1
         btnNavRegistro.FlatStyle = FlatStyle.Flat;
         btnNavRegistro.Font = new Font("Segoe UI", 9F);
         btnNavRegistro.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavRegistro.Location = new Point(0, 192);
+        btnNavRegistro.Location = new Point(0, 240);
         btnNavRegistro.Name = "btnNavRegistro";
         btnNavRegistro.Padding = new Padding(8, 0, 0, 0);
         btnNavRegistro.Size = new Size(256, 42);
-        btnNavRegistro.TabIndex = 3;
+        btnNavRegistro.TabIndex = 5;
         btnNavRegistro.Text = "📈  Registro de conexión";
         btnNavRegistro.TextAlign = ContentAlignment.MiddleLeft;
         btnNavRegistro.UseVisualStyleBackColor = false;
         btnNavRegistro.Click += btnNavRegistro_Click;
+        // 
+        // btnNavFiltro
+        // 
+        btnNavFiltro.BackColor = Color.Transparent;
+        btnNavFiltro.Cursor = Cursors.Hand;
+        btnNavFiltro.FlatAppearance.BorderSize = 0;
+        btnNavFiltro.FlatStyle = FlatStyle.Flat;
+        btnNavFiltro.Font = new Font("Segoe UI", 9F);
+        btnNavFiltro.ForeColor = Color.FromArgb(148, 163, 184);
+        btnNavFiltro.Location = new Point(0, 192);
+        btnNavFiltro.Name = "btnNavFiltro";
+        btnNavFiltro.Padding = new Padding(8, 0, 0, 0);
+        btnNavFiltro.Size = new Size(256, 42);
+        btnNavFiltro.TabIndex = 4;
+        btnNavFiltro.Text = "🛡️  Filtrado de Contenido";
+        btnNavFiltro.TextAlign = ContentAlignment.MiddleLeft;
+        btnNavFiltro.UseVisualStyleBackColor = false;
+        btnNavFiltro.Click += btnNavFiltro_Click;
         // 
         // btnNavConfigs
         // 
@@ -450,11 +452,11 @@ partial class Form1
         btnNavConfigs.FlatStyle = FlatStyle.Flat;
         btnNavConfigs.Font = new Font("Segoe UI", 9F);
         btnNavConfigs.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavConfigs.Location = new Point(0, 96);
+        btnNavConfigs.Location = new Point(0, 144);
         btnNavConfigs.Name = "btnNavConfigs";
         btnNavConfigs.Padding = new Padding(8, 0, 0, 0);
         btnNavConfigs.Size = new Size(256, 42);
-        btnNavConfigs.TabIndex = 2;
+        btnNavConfigs.TabIndex = 3;
         btnNavConfigs.Text = "💾  Mis configuraciones";
         btnNavConfigs.TextAlign = ContentAlignment.MiddleLeft;
         btnNavConfigs.UseVisualStyleBackColor = false;
@@ -468,11 +470,11 @@ partial class Form1
         btnNavConfigSsh.FlatStyle = FlatStyle.Flat;
         btnNavConfigSsh.Font = new Font("Segoe UI", 9F);
         btnNavConfigSsh.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavConfigSsh.Location = new Point(0, 48);
+        btnNavConfigSsh.Location = new Point(0, 96);
         btnNavConfigSsh.Name = "btnNavConfigSsh";
         btnNavConfigSsh.Padding = new Padding(8, 0, 0, 0);
         btnNavConfigSsh.Size = new Size(256, 42);
-        btnNavConfigSsh.TabIndex = 1;
+        btnNavConfigSsh.TabIndex = 2;
         btnNavConfigSsh.Text = "🔑  Configuración SSH";
         btnNavConfigSsh.TextAlign = ContentAlignment.MiddleLeft;
         btnNavConfigSsh.UseVisualStyleBackColor = false;
@@ -486,15 +488,33 @@ partial class Form1
         btnNavInicio.FlatStyle = FlatStyle.Flat;
         btnNavInicio.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
         btnNavInicio.ForeColor = Color.White;
-        btnNavInicio.Location = new Point(0, 0);
+        btnNavInicio.Location = new Point(0, 48);
         btnNavInicio.Name = "btnNavInicio";
         btnNavInicio.Padding = new Padding(8, 0, 0, 0);
         btnNavInicio.Size = new Size(256, 42);
-        btnNavInicio.TabIndex = 0;
+        btnNavInicio.TabIndex = 1;
         btnNavInicio.Text = "🏠  Inicio";
         btnNavInicio.TextAlign = ContentAlignment.MiddleLeft;
         btnNavInicio.UseVisualStyleBackColor = false;
         btnNavInicio.Click += btnNavInicio_Click;
+        // 
+        // btnNavDashboard
+        // 
+        btnNavDashboard.BackColor = Color.Transparent;
+        btnNavDashboard.Cursor = Cursors.Hand;
+        btnNavDashboard.FlatAppearance.BorderSize = 0;
+        btnNavDashboard.FlatStyle = FlatStyle.Flat;
+        btnNavDashboard.Font = new Font("Segoe UI", 9F);
+        btnNavDashboard.ForeColor = Color.FromArgb(148, 163, 184);
+        btnNavDashboard.Location = new Point(0, 0);
+        btnNavDashboard.Name = "btnNavDashboard";
+        btnNavDashboard.Padding = new Padding(8, 0, 0, 0);
+        btnNavDashboard.Size = new Size(256, 42);
+        btnNavDashboard.TabIndex = 0;
+        btnNavDashboard.Text = "📊  Dashboard";
+        btnNavDashboard.TextAlign = ContentAlignment.MiddleLeft;
+        btnNavDashboard.UseVisualStyleBackColor = false;
+        btnNavDashboard.Click += btnNavDashboard_Click;
         // 
         // picLogo
         // 
@@ -2574,6 +2594,7 @@ partial class Form1
     private System.Windows.Forms.Panel panelSidebar;
     private System.Windows.Forms.PictureBox picLogo;
     private System.Windows.Forms.Panel panelNavButtons;
+    private System.Windows.Forms.Button btnNavDashboard;
     private System.Windows.Forms.Button btnNavInicio;
     private System.Windows.Forms.Button btnNavConfigSsh;
     private System.Windows.Forms.Button btnNavConfigs;

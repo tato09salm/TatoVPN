@@ -26,6 +26,15 @@ public class ContentFilterService : IContentFilterService
     public bool HabilitarFiltrado { get; set; } = true;
     public bool HabilitarInspeccionSNI { get; set; } = false;
 
+    private long _totalBloqueados;
+    private long _totalPermitidos;
+
+    public long TotalBloqueados => Interlocked.Read(ref _totalBloqueados);
+    public long TotalPermitidos => Interlocked.Read(ref _totalPermitidos);
+
+    public void IncrementarBloqueados() => Interlocked.Increment(ref _totalBloqueados);
+    public void IncrementarPermitidos() => Interlocked.Increment(ref _totalPermitidos);
+
     public ContentFilterService(ILoggerService logger)
     {
         _logger = logger;

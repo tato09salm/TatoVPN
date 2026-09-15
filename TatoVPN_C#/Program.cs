@@ -47,6 +47,7 @@ static class Program
         bool isRestart = args != null && args.Contains("--restart");
         bool createdNew = false;
 
+
         try
         {
             AppMutex = new Mutex(true, MutexName, out createdNew);
