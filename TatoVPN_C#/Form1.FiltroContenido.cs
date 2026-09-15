@@ -319,11 +319,18 @@ public partial class Form1
         string dom = txtNuevoDominio.Text.Trim();
         if (!string.IsNullOrEmpty(dom))
         {
-            _contentFilterService.AgregarDominioPersonalizado(dom);
-            if (!lbDominios.Items.Contains(dom))
-                lbDominios.Items.Add(dom);
-            txtNuevoDominio.Clear();
-            GuardarCambiosSilencioso();
+            try
+            {
+                string domNormalizado = _contentFilterService.AgregarDominioPersonalizado(dom);
+                if (!lbDominios.Items.Contains(domNormalizado))
+                    lbDominios.Items.Add(domNormalizado);
+                txtNuevoDominio.Clear();
+                GuardarCambiosSilencioso();
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Dominio Inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 

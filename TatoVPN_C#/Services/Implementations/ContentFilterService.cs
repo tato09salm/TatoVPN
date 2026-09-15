@@ -97,7 +97,12 @@ public class ContentFilterService : IContentFilterService
             {
                 foreach (var d in dominios.EnumerateArray())
                 {
-                    _dominiosPersonalizados.Add(d.GetString() ?? "");
+                    string rawDom = d.GetString() ?? "";
+                    string norm = NormalizarDominio(rawDom);
+                    if (norm != null)
+                    {
+                        _dominiosPersonalizados.Add(norm);
+                    }
                 }
             }
 
@@ -160,6 +165,7 @@ public class ContentFilterService : IContentFilterService
         try
         {
             dominioConsultado = dominioConsultado.Trim().ToLowerInvariant();
+            if (dominioConsultado.StartsWith("www.")) dominioConsultado = dominioConsultado.Substring(4);
 
             // Chequeo exacto
             if (_blockedDomains.Contains(dominioConsultado))
@@ -191,14 +197,44 @@ public class ContentFilterService : IContentFilterService
         }
     }
 
-    public void AgregarDominioPersonalizado(string dominio)
+    private string NormalizarDominio(string dominio)
     {
-        if (string.IsNullOrWhiteSpace(dominio)) return;
-        dominio = dominio.Trim().ToLowerInvariant();
-        if (dominio.StartsWith("www.")) dominio = dominio.Substring(4); // Normalización rápida
+        if (string.IsNullOrWhiteSpace(dominio)) return null;
         
-        _dominiosPersonalizados.Add(dominio);
+        dominio = dominio.Trim().ToLowerInvariant();
+        
+        if (dominio.StartsWith("http://")) dominio = dominio.Substring(7);
+        if (dominio.StartsWith("https://")) dominio = dominio.Substring(8);
+        
+        int pathIndex = dominio.IndexOf('/');
+        if (pathIndex > -1) dominio = dominio.Substring(0, pathIndex);
+        
+        int queryIndex = dominio.IndexOf('?');
+        if (queryIndex > -1) dominio = dominio.Substring(0, queryIndex);
+        
+        if (dominio.StartsWith("www.")) dominio = dominio.Substring(4);
+        
+        var regex = new System.Text.RegularExpressions.Regex(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$");
+        if (!regex.IsMatch(dominio))
+        {
+            return null;
+        }
+        
+        return dominio;
+    }
+
+    public string AgregarDominioPersonalizado(string dominio)
+    {
+        string norm = NormalizarDominio(dominio);
+        if (norm == null)
+        {
+            throw new ArgumentException("El formato del dominio no es válido.");
+        }
+        
+        _dominiosPersonalizados.Add(norm);
         ReconstruirHashSetDominios();
+        
+        return norm;
     }
 
     public void QuitarDominioPersonalizado(string dominio)

@@ -7,7 +7,7 @@ public interface IContentFilterService
     void CargarConfiguracion(string rutaJson);
     void GuardarConfiguracion(string rutaJson);
     bool EstaBloqueado(string dominioConsultado);
-    void AgregarDominioPersonalizado(string dominio);
+    string AgregarDominioPersonalizado(string dominio);
     void QuitarDominioPersonalizado(string dominio);
     void ActivarSitio(string categoria, string sitio, bool activar);
     
