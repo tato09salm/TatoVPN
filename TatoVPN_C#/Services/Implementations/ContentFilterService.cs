@@ -18,6 +18,11 @@ public class ContentFilterService : IContentFilterService
     // Key: Nombre del sitio (ej. "Facebook") -> Value: List de dominios
     private Dictionary<string, List<string>> _sitiosDisponibles = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
+    // Cooldown para evitar loguear el mismo dominio bloqueado múltiples veces en poco tiempo
+    // Key: dominio -> DateTime del último log
+    private readonly Dictionary<string, DateTime> _ultimoLogBloqueado = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan _cooldownLog = TimeSpan.FromSeconds(10);
+
     public bool HabilitarFiltrado { get; set; } = true;
     public bool HabilitarInspeccionSNI { get; set; } = false;
 
@@ -170,7 +175,7 @@ public class ContentFilterService : IContentFilterService
             // Chequeo exacto
             if (_blockedDomains.Contains(dominioConsultado))
             {
-                _logger.Log($"🚫 Bloqueado por filtro de contenido: {dominioConsultado}");
+                LogBloqueadoConCooldown(dominioConsultado, dominioConsultado);
                 return true;
             }
 
@@ -181,7 +186,8 @@ public class ContentFilterService : IContentFilterService
                 string parentDomain = dominioConsultado.Substring(dotIndex + 1);
                 if (_blockedDomains.Contains(parentDomain))
                 {
-                    _logger.Log($"🚫 Bloqueado por filtro de contenido (subdominio): {dominioConsultado} -> {parentDomain}");
+                    // Loguear usando el dominio raíz como clave de cooldown
+                    LogBloqueadoConCooldown(parentDomain, parentDomain);
                     return true;
                 }
                 dotIndex = dominioConsultado.IndexOf('.', dotIndex + 1);
@@ -195,6 +201,22 @@ public class ContentFilterService : IContentFilterService
             _logger.Log($"⚠️ Excepción en el filtro de contenido (se permitirá acceso a {dominioConsultado}): {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Loguea un dominio bloqueado solo si no fue logueado recientemente (cooldown de 10 segundos).
+    /// Esto evita que múltiples sub-requests del navegador generen entradas repetidas en el log.
+    /// </summary>
+    private void LogBloqueadoConCooldown(string clavedominio, string dominioMostrar)
+    {
+        DateTime ahora = DateTime.Now;
+        if (_ultimoLogBloqueado.TryGetValue(clavedominio, out DateTime ultimo))
+        {
+            if (ahora - ultimo < _cooldownLog)
+                return; // Ya se logueó este dominio recientemente, omitir
+        }
+        _ultimoLogBloqueado[clavedominio] = ahora;
+        _logger.Log($"🚫 Bloqueado por filtro de contenido: {dominioMostrar}");
     }
 
     private string NormalizarDominio(string dominio)
