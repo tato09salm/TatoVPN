@@ -7,8 +7,15 @@ namespace miVPN.Services.Implementations;
 
 /// <summary>
 /// Servidor BadVPN UDP Gateway (udpgw) nativo en C#.
-/// Escucha en 127.0.0.1:7300 y multiplexa paquetes UDP (DNS, llamadas, juegos) sobre TCP.
-/// Provee compatibilidad nativa con HTTP Injector sin requerir ejecutables externos.
+/// Escucha en 0.0.0.0:7300 y multiplexa paquetes UDP (DNS, videollamadas, juegos) sobre TCP.
+///
+/// Mejoras para juegos y videollamadas:
+///   • Timeout de 90 s en sockets UDP inactivos (libera recursos de juegos terminados)
+///   • Límite de 512 canales UDP simultáneos por cliente TCP
+///   • Paquetes UDP de hasta 65 507 bytes (máximo UDP sobre IP)
+///   • Escucha en 0.0.0.0 para aceptar conexiones remotas además de loopback
+///   • TTL y buffer optimizados para baja latencia (juegos en tiempo real)
+///   • SIO_UDP_CONNRESET desactivado en Windows para no cortar el socket en ICMP port-unreachable
 /// </summary>
 public class BadVpnUdpGwService : IDisposable
 {
@@ -16,6 +23,10 @@ public class BadVpnUdpGwService : IDisposable
     private CancellationTokenSource? _cts;
     private bool _isRunning;
     private int _port = 7300;
+
+    private const int MaxChannelsPerClient  = 512;
+    private const int UdpIdleTimeoutSeconds = 90;
+    private const int MaxUdpPayload         = 65507;
 
     public bool IsRunning => _isRunning;
     public event Action<string>? OnLog;
@@ -25,16 +36,18 @@ public class BadVpnUdpGwService : IDisposable
         Stop();
 
         _port = port;
-        _cts = new CancellationTokenSource();
+        _cts  = new CancellationTokenSource();
         var token = _cts.Token;
 
         try
         {
-            _listener = new TcpListener(IPAddress.Loopback, port);
+            // Escuchar en todas las interfaces para aceptar conexiones desde el túnel SSH
+            _listener = new TcpListener(IPAddress.Any, port);
             _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            _listener.Start(50);
+            _listener.Start(100);
             _isRunning = true;
-            Log($"🛡️ BadVPN UDPGW activo en 127.0.0.1:{port} (Soporte UDP/DNS para HTTP Injector)");
+
+            Log($"🎮 BadVPN UDPGW activo en 0.0.0.0:{port} — soporte UDP para juegos, videollamadas y DNS");
 
             _ = Task.Run(async () =>
             {
@@ -45,16 +58,11 @@ public class BadVpnUdpGwService : IDisposable
                         var client = await _listener.AcceptTcpClientAsync(token);
                         _ = HandleClientAsync(client, token);
                     }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
+                    catch (OperationCanceledException) { break; }
                     catch (Exception ex)
                     {
                         if (_isRunning)
-                        {
                             Log($"⚠️ Error en listener UDPGW: {ex.Message}");
-                        }
                         try { await Task.Delay(200, token); } catch { }
                     }
                 }
@@ -71,19 +79,25 @@ public class BadVpnUdpGwService : IDisposable
         using var clientCts = CancellationTokenSource.CreateLinkedTokenSource(globalCt);
         var ct = clientCts.Token;
 
-        tcpClient.NoDelay = true;
-        tcpClient.ReceiveBufferSize = 65536;
-        tcpClient.SendBufferSize = 65536;
+        // NoDelay = true es crítico para juegos en tiempo real (elimina Nagle delay)
+        tcpClient.NoDelay            = true;
+        tcpClient.ReceiveBufferSize  = 131072;  // 128 KB
+        tcpClient.SendBufferSize     = 131072;
 
-        var udpSockets = new ConcurrentDictionary<ushort, UdpClient>();
+        // Estructura: conid → (UdpClient, LastActivity)
+        var channels  = new ConcurrentDictionary<ushort, UdpChannel>();
         var tcpStream = tcpClient.GetStream();
         var writeLock = new SemaphoreSlim(1, 1);
+
+        // Timer que cierra canales UDP inactivos (libera puertos de juegos terminados)
+        using var idleTimer = new System.Threading.Timer(_ => CleanupIdleChannels(channels, ct), null,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
         try
         {
             using (tcpClient)
             {
-                byte[] lenBuf = new byte[2];
+                var lenBuf = new byte[2];
 
                 while (!ct.IsCancellationRequested)
                 {
@@ -91,127 +105,150 @@ public class BadVpnUdpGwService : IDisposable
                     if (!await ReadExactAsync(tcpStream, lenBuf, 0, 2, ct)) break;
                     ushort packetLen = BinaryPrimitives.ReadUInt16BigEndian(lenBuf);
 
-                    if (packetLen < 3 || packetLen > 32768)
-                    {
-                        break; // Paquete inválido
-                    }
+                    // Mínimo 3 bytes (flags + conid), máximo = header + payload UDP máximo
+                    if (packetLen < 3 || packetLen > MaxUdpPayload + 21) break;
 
-                    // 2. Leer cuerpo del paquete udpgw
                     byte[] packetBody = new byte[packetLen];
                     if (!await ReadExactAsync(tcpStream, packetBody, 0, packetLen, ct)) break;
 
-                    byte flags = packetBody[0];
+                    byte   flags = packetBody[0];
                     ushort conid = BinaryPrimitives.ReadUInt16LittleEndian(packetBody.AsSpan(1, 2));
 
-                    // Flag 0x01 = Keepalive
+                    // ── Keepalive ──────────────────────────────────────────────────────────
                     if ((flags & 0x01) != 0)
                     {
-                        byte[] keepAliveResp = new byte[5];
-                        BinaryPrimitives.WriteUInt16BigEndian(keepAliveResp.AsSpan(0, 2), 3);
-                        keepAliveResp[2] = 0x01; // flag keepalive
-                        BinaryPrimitives.WriteUInt16LittleEndian(keepAliveResp.AsSpan(3, 2), conid);
+                        var resp = new byte[5];
+                        BinaryPrimitives.WriteUInt16BigEndian(resp.AsSpan(0, 2), 3);
+                        resp[2] = 0x01;
+                        BinaryPrimitives.WriteUInt16LittleEndian(resp.AsSpan(3, 2), conid);
 
                         await writeLock.WaitAsync(ct);
-                        try { await tcpStream.WriteAsync(keepAliveResp, ct); }
+                        try   { await tcpStream.WriteAsync(resp, ct); }
                         finally { writeLock.Release(); }
                         continue;
                     }
 
-                    bool isIpv6 = (flags & 0x08) != 0;
-                    int headerSize = isIpv6 ? (1 + 2 + 16 + 2) : (1 + 2 + 4 + 2); // 21 o 9 bytes
+                    // ── Parsear cabecera destino ───────────────────────────────────────────
+                    bool isIpv6     = (flags & 0x08) != 0;
+                    int  headerSize = isIpv6 ? 21 : 9;  // IPv6: 1+2+16+2  |  IPv4: 1+2+4+2
 
                     if (packetLen < headerSize) continue;
 
                     IPAddress destIp;
-                    ushort destPort;
+                    ushort    destPort;
                     if (isIpv6)
                     {
-                        destIp = new IPAddress(packetBody.AsSpan(3, 16));
+                        destIp   = new IPAddress(packetBody.AsSpan(3, 16));
                         destPort = BinaryPrimitives.ReadUInt16BigEndian(packetBody.AsSpan(19, 2));
                     }
                     else
                     {
-                        destIp = new IPAddress(packetBody.AsSpan(3, 4));
+                        destIp   = new IPAddress(packetBody.AsSpan(3, 4));
                         destPort = BinaryPrimitives.ReadUInt16BigEndian(packetBody.AsSpan(7, 2));
                     }
 
-                    int payloadLen = packetLen - headerSize;
-                    byte[] payload = new byte[payloadLen];
-                    Buffer.BlockCopy(packetBody, headerSize, payload, 0, payloadLen);
+                    int    payloadLen = packetLen - headerSize;
+                    byte[] payload    = new byte[payloadLen];
+                    if (payloadLen > 0)
+                        Buffer.BlockCopy(packetBody, headerSize, payload, 0, payloadLen);
 
-                    // Flag 0x02 = Rebind (cerrar socket previo si existía)
-                    if ((flags & 0x02) != 0 && udpSockets.TryRemove(conid, out var oldUdp))
+                    // ── Rebind (flag 0x02): cerrar socket anterior para este conid ─────────
+                    if ((flags & 0x02) != 0 && channels.TryRemove(conid, out var oldCh))
+                        oldCh.Dispose();
+
+                    // ── Límite de canales por cliente ─────────────────────────────────────
+                    if (channels.Count >= MaxChannelsPerClient)
                     {
-                        try { oldUdp.Dispose(); } catch { }
+                        // Eliminar el canal más antiguo para hacer espacio
+                        var oldest = channels.OrderBy(kv => kv.Value.LastActivity).FirstOrDefault();
+                        if (channels.TryRemove(oldest.Key, out var oldestCh))
+                            oldestCh.Dispose();
                     }
 
-                    var udp = udpSockets.GetOrAdd(conid, id =>
+                    // ── Obtener o crear socket UDP para este conid ─────────────────────────
+                    var ch = channels.GetOrAdd(conid, id =>
                     {
-                        var u = new UdpClient();
-                        try { u.Client.ReceiveBufferSize = 65536; } catch { }
-                        try { u.Client.SendBufferSize = 65536; } catch { }
+                        var udp = new UdpClient(AddressFamily.InterNetwork);
+                        try
+                        {
+                            udp.Client.ReceiveBufferSize = 131072;
+                            udp.Client.SendBufferSize    = 131072;
 
-                        // Escuchar respuestas UDP remotas y reenviarlas al túnel TCP
+                            // Desactivar SIO_UDP_CONNRESET en Windows:
+                            // evita que un ICMP "port unreachable" cierre el socket UDP del juego.
+                            if (OperatingSystem.IsWindows())
+                            {
+                                const uint IOC_IN            = 0x80000000;
+                                const uint IOC_VENDOR       = 0x18000000;
+                                const uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
+                                udp.Client.IOControl(unchecked((int)SIO_UDP_CONNRESET), [0x00], null);
+                            }
+
+                            // TTL alto para evitar drops en redes móviles
+                            udp.Ttl = 128;
+                        }
+                        catch { }
+
+                        // Escuchar respuestas del servidor remoto (juego / DNS / videollamada)
                         _ = Task.Run(async () =>
                         {
                             try
                             {
                                 while (!ct.IsCancellationRequested)
                                 {
-                                    var result = await u.ReceiveAsync(ct);
-                                    byte[] respData = result.Buffer;
-                                    IPEndPoint remoteEp = result.RemoteEndPoint;
+                                    var result   = await udp.ReceiveAsync(ct);
+                                    var respData = result.Buffer;
+                                    var remoteEp = result.RemoteEndPoint;
 
-                                    bool respIsIpv6 = remoteEp.AddressFamily == AddressFamily.InterNetworkV6;
-                                    int respHeaderSize = respIsIpv6 ? 21 : 9;
-                                    ushort totalFrameLen = (ushort)(respHeaderSize + respData.Length);
+                                    // Actualizar timestamp de actividad
+                                    if (channels.TryGetValue(id, out var chRef))
+                                        chRef.LastActivity = DateTime.UtcNow;
 
-                                    byte[] wireFrame = new byte[2 + totalFrameLen];
-                                    BinaryPrimitives.WriteUInt16BigEndian(wireFrame.AsSpan(0, 2), totalFrameLen);
-                                    wireFrame[2] = respIsIpv6 ? (byte)0x08 : (byte)0x00; // flags
-                                    BinaryPrimitives.WriteUInt16LittleEndian(wireFrame.AsSpan(3, 2), id);
+                                    // Construir frame de respuesta udpgw
+                                    bool  rIsIpv6    = remoteEp.AddressFamily == AddressFamily.InterNetworkV6;
+                                    int   rHdrSize   = rIsIpv6 ? 21 : 9;
+                                    ushort frameLen  = (ushort)(rHdrSize + respData.Length);
+                                    var   wire       = new byte[2 + frameLen];
 
-                                    if (respIsIpv6)
+                                    BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(0, 2), frameLen);
+                                    wire[2] = rIsIpv6 ? (byte)0x08 : (byte)0x00;
+                                    BinaryPrimitives.WriteUInt16LittleEndian(wire.AsSpan(3, 2), id);
+
+                                    byte[] ipBytes = remoteEp.Address.GetAddressBytes();
+                                    if (rIsIpv6)
                                     {
-                                        byte[] ipBytes = remoteEp.Address.GetAddressBytes();
-                                        Buffer.BlockCopy(ipBytes, 0, wireFrame, 5, 16);
-                                        BinaryPrimitives.WriteUInt16BigEndian(wireFrame.AsSpan(21, 2), (ushort)remoteEp.Port);
-                                        Buffer.BlockCopy(respData, 0, wireFrame, 23, respData.Length);
+                                        Buffer.BlockCopy(ipBytes, 0, wire, 5, 16);
+                                        BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(21, 2), (ushort)remoteEp.Port);
+                                        Buffer.BlockCopy(respData, 0, wire, 23, respData.Length);
                                     }
                                     else
                                     {
-                                        byte[] ipBytes = remoteEp.Address.GetAddressBytes();
-                                        Buffer.BlockCopy(ipBytes, 0, wireFrame, 5, 4);
-                                        BinaryPrimitives.WriteUInt16BigEndian(wireFrame.AsSpan(9, 2), (ushort)remoteEp.Port);
-                                        Buffer.BlockCopy(respData, 0, wireFrame, 11, respData.Length);
+                                        Buffer.BlockCopy(ipBytes, 0, wire, 5, 4);
+                                        BinaryPrimitives.WriteUInt16BigEndian(wire.AsSpan(9, 2), (ushort)remoteEp.Port);
+                                        Buffer.BlockCopy(respData, 0, wire, 11, respData.Length);
                                     }
 
                                     await writeLock.WaitAsync(ct);
-                                    try
-                                    {
-                                        await tcpStream.WriteAsync(wireFrame, ct);
-                                    }
-                                    finally
-                                    {
-                                        writeLock.Release();
-                                    }
+                                    try   { await tcpStream.WriteAsync(wire, ct); }
+                                    finally { writeLock.Release(); }
                                 }
                             }
                             catch { }
                             finally
                             {
-                                udpSockets.TryRemove(id, out _);
-                                try { u.Dispose(); } catch { }
+                                channels.TryRemove(id, out _);
+                                try { udp.Dispose(); } catch { }
                             }
                         }, ct);
 
-                        return u;
+                        return new UdpChannel(udp);
                     });
 
-                    // Enviar datagrama UDP hacia el destino (ej. servidor DNS 8.8.8.8:53)
+                    // ── Actualizar actividad y enviar datagrama al destino ─────────────────
+                    ch.LastActivity = DateTime.UtcNow;
                     try
                     {
-                        await udp.SendAsync(payload, payloadLen, new IPEndPoint(destIp, destPort));
+                        await ch.Udp.SendAsync(payload, payloadLen, new IPEndPoint(destIp, destPort));
                     }
                     catch { }
                 }
@@ -221,23 +258,35 @@ public class BadVpnUdpGwService : IDisposable
         finally
         {
             clientCts.Cancel();
-            foreach (var kv in udpSockets)
+            foreach (var kv in channels)
             {
                 try { kv.Value.Dispose(); } catch { }
             }
-            udpSockets.Clear();
+            channels.Clear();
             writeLock.Dispose();
+        }
+    }
+
+    /// <summary>Cierra canales UDP que no han tenido actividad en UdpIdleTimeoutSeconds.</summary>
+    private static void CleanupIdleChannels(ConcurrentDictionary<ushort, UdpChannel> channels, CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested) return;
+        var cutoff = DateTime.UtcNow.AddSeconds(-UdpIdleTimeoutSeconds);
+        foreach (var kv in channels.Where(c => c.Value.LastActivity < cutoff).ToList())
+        {
+            if (channels.TryRemove(kv.Key, out var ch))
+                ch.Dispose();
         }
     }
 
     private static async Task<bool> ReadExactAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken ct)
     {
-        int totalRead = 0;
-        while (totalRead < count)
+        int total = 0;
+        while (total < count)
         {
-            int read = await stream.ReadAsync(buffer.AsMemory(offset + totalRead, count - totalRead), ct);
+            int read = await stream.ReadAsync(buffer.AsMemory(offset + total, count - total), ct);
             if (read <= 0) return false;
-            totalRead += read;
+            total += read;
         }
         return true;
     }
@@ -245,7 +294,6 @@ public class BadVpnUdpGwService : IDisposable
     public void Stop()
     {
         if (!_isRunning) return;
-
         try
         {
             _isRunning = false;
@@ -266,4 +314,16 @@ public class BadVpnUdpGwService : IDisposable
     }
 
     private void Log(string message) => OnLog?.Invoke(message);
+
+    // ── Clase auxiliar de canal UDP ───────────────────────────────────────────
+    private sealed class UdpChannel(UdpClient udp) : IDisposable
+    {
+        public readonly UdpClient Udp = udp;
+        public DateTime LastActivity  = DateTime.UtcNow;
+
+        public void Dispose()
+        {
+            try { Udp.Dispose(); } catch { }
+        }
+    }
 }

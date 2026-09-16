@@ -792,6 +792,13 @@ public partial class Form1
                 AppendServerLog($"   • Puerto Proxy  : {proxyPort} (Opcional para HTTP Proxy)");
                 AppendServerLog("💡 Modo recomendado en HTTP Injector: Túnel 'SSH (Directo)'");
                 AppendServerLog("==================================================");
+                AppendServerLog("🎮 SOPORTE JUEGOS Y VIDEOLLAMADAS (UDP via UDPGW):");
+                AppendServerLog("   En HTTP Injector → SSH Settings → habilita:");
+                AppendServerLog("   ✅ Enable UDP (BadVPN)");
+                AppendServerLog($"   • UDPGW Host : {localIp}");
+                AppendServerLog("   • UDPGW Port : 7300");
+                AppendServerLog("   Esto permite Free Fire, Among Us, WhatsApp/Meet, etc.");
+                AppendServerLog("==================================================");
                 AppendServerLog("⏳ Servidor listo. Esperando conexión desde tu celular...");
             }
 

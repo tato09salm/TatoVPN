@@ -7,6 +7,19 @@ using FxSsh.Services;
 
 namespace miVPN.Services.Implementations;
 
+/// <summary>
+/// Servidor SSH real que acepta conexiones de HTTP Injector y proxifica los túneles TCP.
+///
+/// Notas de estabilidad:
+///   • NO llamamos channel.SendClose() desde el código del túnel.
+///     FxSsh elimina el canal de su diccionario interno en cuanto recibe SendClose();
+///     si el cliente aún no procesó ese close y manda SSH_MSG_CHANNEL_WINDOW_ADJUST,
+///     FxSsh lanza excepción y mata TODA la sesión SSH. Solución: solo enviamos EOF
+///     y dejamos que FxSsh gestione el cierre cuando llegue el close del cliente.
+///   • El hot-path de datos (pumpToClient) NO tiene try/catch de excepciones de
+///     "ventana" ni "canal" porque eso rompe el flujo de datos y baja el throughput
+///     de 8 MB/s a ~8 KB/s.
+/// </summary>
 public class LocalSshServerService : IDisposable
 {
     private SshServer? _server;
@@ -16,6 +29,8 @@ public class LocalSshServerService : IDisposable
     private int _port = 2222;
     private int _activeTunnels;
     private readonly object _lock = new();
+
+
 
     public bool IsRunning => _isRunning;
     public int ActiveTunnels => _activeTunnels;
@@ -34,12 +49,14 @@ public class LocalSshServerService : IDisposable
             _password = password;
 
             var info = new StartingInfo(IPAddress.Any, port, "SSH-2.0-TatoVPN");
+
+
+
             _server = new SshServer(info);
 
-            // Cargar o generar claves de host
-            // Registramos 'ssh-rsa' y 'ecdsa-sha2-nistp256'. NO registramos 'rsa-sha2-256'
-            // para compatibilidad nativa con HTTP Injector en Android (evita error 'Unknown key type rsa-sha2-256').
-            string rsaPem = GetOrCreateHostKey();
+            // Registramos 'ssh-rsa' y 'ecdsa-sha2-nistp256'.
+            // NO registramos 'rsa-sha2-256' para compatibilidad con HTTP Injector Android.
+            string rsaPem   = GetOrCreateHostKey();
             string ecdsaPem = GetOrCreateEcdsaHostKey();
             try
             {
@@ -65,8 +82,8 @@ public class LocalSshServerService : IDisposable
 
         try
         {
-            // Keepalive activo cada 15 segundos para evitar desconexiones por inactividad de NAT, operadoras o Pinggy
-            session.ConfigureKeepalive(TimeSpan.FromSeconds(15));
+            // Keepalive cada 25 s para mantener viva la sesión en NAT de operadoras LTE/4G.
+            session.ConfigureKeepalive(TimeSpan.FromSeconds(25));
         }
         catch { }
 
@@ -84,16 +101,12 @@ public class LocalSshServerService : IDisposable
                     bool authOk = string.Equals(uArgs.Username, _username, StringComparison.Ordinal) &&
                                   string.Equals(uArgs.Password, _password, StringComparison.Ordinal);
 
+                    uArgs.Result = authOk;
+
                     if (authOk)
-                    {
-                        uArgs.Result = true;
-                        Log($"✅ Autenticación EXITOSA para usuario '{uArgs.Username}' desde cliente.");
-                    }
+                        Log($"✅ Auth OK → '{uArgs.Username}'");
                     else
-                    {
-                        uArgs.Result = false;
-                        Log($"❌ Autenticación DENEGADA para usuario '{uArgs.Username}'. Credenciales incorrectas.");
-                    }
+                        Log($"❌ Auth DENEGADA → '{uArgs.Username}'");
                 };
             }
             else if (e is ConnectionService connection)
@@ -104,9 +117,8 @@ public class LocalSshServerService : IDisposable
                 {
                     try
                     {
-                        var msg = Encoding.UTF8.GetBytes("TatoVPN SSH Server OK\r\n");
-                        cArgs.Channel.SendData(msg);
-                        cArgs.Channel.SendClose();
+                        cArgs.Channel.SendData(Encoding.UTF8.GetBytes("TatoVPN SSH Server OK\r\n"));
+                        // No llamamos SendClose aquí tampoco; FxSsh lo cerrará solo.
                     }
                     catch { }
                 };
@@ -117,160 +129,143 @@ public class LocalSshServerService : IDisposable
     private void HandleTcpForwardRequest(object? sender, TcpRequestArgs cArgs)
     {
         string destHost = cArgs.Host;
-        int destPort = (int)cArgs.Port;
+        int    destPort = (int)cArgs.Port;
+        var    channel  = cArgs.Channel;
 
         Interlocked.Increment(ref _activeTunnels);
         OnActiveTunnelsChanged?.Invoke(_activeTunnels);
 
-        Log($"🌐 [Túnel SSH] Solicitud de conexión hacia {destHost}:{destPort}");
+        Log($"🌐 [Túnel] → {destHost}:{destPort}");
 
         _ = Task.Run(async () =>
         {
-            var channel = cArgs.Channel;
-            using var tunnelCts = new CancellationTokenSource();
-            var ct = tunnelCts.Token;
+            using var cts = new CancellationTokenSource();
+            var ct = cts.Token;
 
-            // Cola para canalizar los datos entrantes del cliente SSH sin pérdida de paquetes ni bloqueos
-            var inboundQueue = System.Threading.Channels.Channel.CreateUnbounded<byte[]>(
-                new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+            // Cola sin pérdida para datos que llegan del cliente SSH mientras conectamos.
+            var inbound = System.Threading.Channels.Channel.CreateUnbounded<byte[]>(
+                new System.Threading.Channels.UnboundedChannelOptions
+                {
+                    SingleReader = true,
+                    SingleWriter = false
+                });
 
-            // Suscripción inmediata para no perder datos que el cliente envíe mientras conectamos con el servidor destino
-            EventHandler<ReadOnlyMemory<byte>> onDataReceived = (s, data) =>
+            // ── Handlers del canal SSH ──────────────────────────────────────────────
+            EventHandler<ReadOnlyMemory<byte>> onData = (_, data) =>
             {
                 if (!data.IsEmpty)
-                {
-                    inboundQueue.Writer.TryWrite(data.ToArray());
-                }
+                    inbound.Writer.TryWrite(data.ToArray());
             };
 
-            EventHandler onEofReceived = (s, e) =>
+            EventHandler onEof = (_, _) =>
             {
-                inboundQueue.Writer.TryComplete();
+                inbound.Writer.TryComplete();
             };
 
-            EventHandler onCloseReceived = (s, e) =>
+            EventHandler onClose = (_, _) =>
             {
-                inboundQueue.Writer.TryComplete();
-                try { tunnelCts.Cancel(); } catch { }
+                inbound.Writer.TryComplete();
+                try { cts.Cancel(); } catch { }
             };
 
-            channel.DataReceived += onDataReceived;
-            channel.EofReceived += onEofReceived;
-            channel.CloseReceived += onCloseReceived;
+            channel.DataReceived  += onData;
+            channel.EofReceived   += onEof;
+            channel.CloseReceived += onClose;
+            // ───────────────────────────────────────────────────────────────────────
 
-            var targetClient = new TcpClient
-            {
-                NoDelay = true,
-                ReceiveBufferSize = 65536,
-                SendBufferSize = 65536
-            };
+            var remote = new TcpClient { NoDelay = true, ReceiveBufferSize = 32768, SendBufferSize = 32768 };
 
             try
             {
-                // Conectar al destino con timeout de 10s
-                using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                connectCts.CancelAfter(TimeSpan.FromSeconds(10));
-                await targetClient.ConnectAsync(destHost, destPort, connectCts.Token);
+                // Conectar al destino con timeout 12 s
+                using var connCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                connCts.CancelAfter(TimeSpan.FromSeconds(12));
+                await remote.ConnectAsync(destHost, destPort, connCts.Token);
 
-                var remoteStream = targetClient.GetStream();
+                // TCP keepalive en el socket de destino para detectar cierres silenciosos
+                remote.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
-                // Tarea 1: Cliente SSH -> Destino remoto (escritura secuencial y protegida)
-                var pumpToTarget = Task.Run(async () =>
+                var stream = remote.GetStream();
+
+                // ── Pump 1: Cliente SSH → Servidor destino ──────────────────────────
+                var toRemote = Task.Run(async () =>
                 {
                     try
                     {
-                        await foreach (var chunk in inboundQueue.Reader.ReadAllAsync(ct))
+                        await foreach (var chunk in inbound.Reader.ReadAllAsync(ct))
                         {
-                            if (chunk.Length > 0 && targetClient.Connected)
-                            {
-                                await remoteStream.WriteAsync(chunk, ct);
-                            }
+                            if (chunk.Length > 0 && remote.Connected)
+                                await stream.WriteAsync(chunk, ct);
                         }
                     }
                     catch (OperationCanceledException) { }
                     catch { }
                     finally
                     {
-                        try { targetClient.Client.Shutdown(SocketShutdown.Send); } catch { }
+                        // Señalar al servidor remoto que no vienen más datos del cliente
+                        try { remote.Client.Shutdown(SocketShutdown.Send); } catch { }
                     }
                 }, ct);
 
-                // Tarea 2: Destino remoto -> Cliente SSH (asíncrono con SendDataAsync en bloques de 32KB)
-                var pumpToClient = Task.Run(async () =>
+                // ── Pump 2: Servidor destino → Cliente SSH ──────────────────────────
+                // HOT PATH: no envolver en try/catch de excepciones específicas de canal/ventana.
+                // Cualquier excepción aquí (incl. canal cerrado por el cliente) termina el loop
+                // normalmente. No filtramos "window" ni "closed" porque eso paraba el flujo.
+                var toClient = Task.Run(async () =>
                 {
-                    byte[] buffer = new byte[32768];
+                    var buf = new byte[32768];
                     try
                     {
-                        while (!ct.IsCancellationRequested && targetClient.Connected)
+                        while (!ct.IsCancellationRequested && remote.Connected)
                         {
-                            int bytesRead = await remoteStream.ReadAsync(buffer, 0, buffer.Length, ct);
-                            if (bytesRead <= 0) break;
+                            int n = await stream.ReadAsync(buf, 0, buf.Length, ct);
+                            if (n <= 0) break;
 
-                            byte[] toSend = new byte[bytesRead];
-                            Buffer.BlockCopy(buffer, 0, toSend, 0, bytesRead);
-                            channel.SendData(toSend);
+                            var slice = new byte[n];
+                            Buffer.BlockCopy(buf, 0, slice, 0, n);
+                            channel.SendData(slice);   // bloquea si la ventana SSH está llena → correcto
                         }
                     }
                     catch (OperationCanceledException) { }
-                    catch (ObjectDisposedException) { }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        // Excepciones normales cuando la sesión se desconecta o cierra
-                    }
+                    catch { /* canal cerrado por el cliente u otra excepción de FxSsh; terminamos limpiamente */ }
                     finally
                     {
-                        // Notificar fin de datos suavemente con EOF (no cerrar abruptamente el canal en la cara del cliente)
+                        // EOF señala al cliente que terminamos de enviar datos.
+                        // NO llamamos SendClose() porque FxSsh eliminaría el canal de su dict
+                        // antes de que el cliente procese el close, provocando
+                        // "SSH_MSG_CHANNEL_WINDOW_ADJUST message for non-existent channel".
                         try { channel.SendEof(); } catch { }
                     }
                 }, ct);
 
-                // Esperar a que una de las dos direcciones concluya
-                var firstCompleted = await Task.WhenAny(pumpToTarget, pumpToClient);
+                // Esperar a que alguno de los dos pumps termine primero
+                await Task.WhenAny(toRemote, toClient);
 
-                if (firstCompleted == pumpToClient)
-                {
-                    // El servidor remoto terminó de enviar la respuesta y cerró su socket.
-                    // Completar la cola ANTES de cancelar el CTS para desbloquear ReadAllAsync de pumpToTarget
-                    // de forma limpia sin dejar el thread zombie esperando indefinidamente.
-                    inboundQueue.Writer.TryComplete();
-                    try { tunnelCts.Cancel(); } catch { }
-                }
-                else
-                {
-                    // El cliente SSH terminó de enviar datos. Damos hasta 3 segundos al servidor remoto para terminar de responder.
-                    try
-                    {
-                        await pumpToClient.WaitAsync(TimeSpan.FromSeconds(3));
-                    }
-                    catch { }
-                    inboundQueue.Writer.TryComplete();
-                    try { tunnelCts.Cancel(); } catch { }
-                }
+                // Completar la cola y cancelar el otro pump
+                inbound.Writer.TryComplete();
+                try { cts.Cancel(); } catch { }
 
-                try { await Task.WhenAll(pumpToTarget, pumpToClient); } catch { }
+                // Dar hasta 3 s para que el segundo pump termine graciosamente
+                try { await Task.WhenAll(toRemote, toClient).WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                // No alarmar al usuario si fue desconexión general del socket o cierre normal
-                if (!ct.IsCancellationRequested && 
-                    !ex.Message.Contains("Object reference") && 
-                    !ex.Message.Contains("disposed") &&
-                    !ex.Message.Contains("Connection reset"))
-                {
-                    Log($"⚠️ Error en túnel hacia {destHost}:{destPort}: {ex.Message}");
-                }
+                if (!ct.IsCancellationRequested)
+                    Log($"⚠️ Túnel {destHost}:{destPort}: {ex.Message}");
             }
             finally
             {
-                // Limpieza garantizada de eventos para que FxSsh no dispare ajustes de ventana en canales cerrados
-                channel.DataReceived -= onDataReceived;
-                channel.EofReceived -= onEofReceived;
-                channel.CloseReceived -= onCloseReceived;
-                inboundQueue.Writer.TryComplete();
+                // Desuscribir SIEMPRE para no recibir más eventos en canal ya muerto
+                channel.DataReceived  -= onData;
+                channel.EofReceived   -= onEof;
+                channel.CloseReceived -= onClose;
+                inbound.Writer.TryComplete();
 
-                try { targetClient.Close(); targetClient.Dispose(); } catch { }
-                try { channel.SendClose(); } catch { }
+                // SendEof final de seguridad (idempotente; FxSsh lo ignora si ya se envió)
+                try { channel.SendEof(); } catch { }
+
+                try { remote.Close(); remote.Dispose(); } catch { }
 
                 Interlocked.Decrement(ref _activeTunnels);
                 OnActiveTunnelsChanged?.Invoke(_activeTunnels);
@@ -278,27 +273,25 @@ public class LocalSshServerService : IDisposable
         });
     }
 
+    // ── Claves de Host ───────────────────────────────────────────────────────────
+
     private string GetOrCreateHostKey()
     {
         try
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string keyDir = Path.Combine(appData, "TatoVPN");
-            Directory.CreateDirectory(keyDir);
-            string keyPath = Path.Combine(keyDir, "server_rsa_hostkey.pem");
+            string dir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TatoVPN");
+            Directory.CreateDirectory(dir);
+            string path = Path.Combine(dir, "server_rsa_hostkey.pem");
 
-            if (File.Exists(keyPath))
+            if (File.Exists(path))
             {
-                string existing = File.ReadAllText(keyPath);
-                if (!string.IsNullOrWhiteSpace(existing) && existing.Contains("PRIVATE KEY"))
-                {
-                    return existing;
-                }
+                string txt = File.ReadAllText(path);
+                if (!string.IsNullOrWhiteSpace(txt) && txt.Contains("PRIVATE KEY")) return txt;
             }
 
             using var rsa = RSA.Create(2048);
             string pem = rsa.ExportPkcs8PrivateKeyPem();
-            File.WriteAllText(keyPath, pem);
+            File.WriteAllText(path, pem);
             return pem;
         }
         catch
@@ -312,23 +305,19 @@ public class LocalSshServerService : IDisposable
     {
         try
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string keyDir = Path.Combine(appData, "TatoVPN");
-            Directory.CreateDirectory(keyDir);
-            string keyPath = Path.Combine(keyDir, "server_ecdsa_hostkey.pem");
+            string dir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TatoVPN");
+            Directory.CreateDirectory(dir);
+            string path = Path.Combine(dir, "server_ecdsa_hostkey.pem");
 
-            if (File.Exists(keyPath))
+            if (File.Exists(path))
             {
-                string existing = File.ReadAllText(keyPath);
-                if (!string.IsNullOrWhiteSpace(existing) && existing.Contains("PRIVATE KEY"))
-                {
-                    return existing;
-                }
+                string txt = File.ReadAllText(path);
+                if (!string.IsNullOrWhiteSpace(txt) && txt.Contains("PRIVATE KEY")) return txt;
             }
 
             using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             string pem = ecdsa.ExportPkcs8PrivateKeyPem();
-            File.WriteAllText(keyPath, pem);
+            File.WriteAllText(path, pem);
             return pem;
         }
         catch
@@ -338,21 +327,19 @@ public class LocalSshServerService : IDisposable
         }
     }
 
-    private void Log(string message)
-    {
-        OnLog?.Invoke(message);
-    }
+    // ── Helpers ──────────────────────────────────────────────────────────────────
+
+    private void Log(string message) => OnLog?.Invoke(message);
 
     public void Stop()
     {
         lock (_lock)
         {
             if (!_isRunning) return;
-
             try
             {
                 _server?.Stop();
-                _server = null;
+                _server    = null;
                 _isRunning = false;
                 _activeTunnels = 0;
                 OnActiveTunnelsChanged?.Invoke(0);
