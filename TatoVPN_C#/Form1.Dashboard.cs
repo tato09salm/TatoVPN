@@ -157,6 +157,31 @@ public partial class Form1
         // Las 3 tarjetas se mantienen permanentemente en 3 columnas proporcionales (33.33% cada una)
     }
 
+    /// <summary>
+    /// Calcula la altura necesaria para que el label de título haga WordWrap completo
+    /// y ajusta el panel contenedor (pnlHead) en consecuencia.
+    /// </summary>
+    private static void AdjustTitlePanelHeight(Panel pnlHead, Label lblTitle, int extraHeight)
+    {
+        if (pnlHead == null || lblTitle == null || lblTitle.Width <= 0) return;
+
+        // Medir el texto con el ancho disponible para calcular la altura real necesaria
+        var proposedSize = new Size(lblTitle.Width, int.MaxValue);
+        var measuredSize = TextRenderer.MeasureText(
+            lblTitle.Text,
+            lblTitle.Font,
+            proposedSize,
+            TextFormatFlags.WordBreak | TextFormatFlags.Left | TextFormatFlags.Top
+        );
+
+        int titleHeight = Math.Max(measuredSize.Height + 4, 22); // mínimo 22px
+        lblTitle.Height = titleHeight;
+
+        int newPanelHeight = titleHeight + extraHeight;
+        if (pnlHead.Height != newPanelHeight)
+            pnlHead.Height = newPanelHeight;
+    }
+
     private void BuildLatencyCard()
     {
         cardLatency = new Panel
@@ -182,10 +207,15 @@ public partial class Form1
             ForeColor = System.Drawing.Color.White,
             AutoSize = false,
             Dock = DockStyle.Top,
-            TextAlign = ContentAlignment.MiddleLeft,
+            TextAlign = ContentAlignment.TopLeft,
             Height = 42,
-            MaximumSize = new Size(0, 0)
+            MaximumSize = new Size(0, 0),
+            UseMnemonic = false,
+            AutoEllipsis = false
         };
+
+        // Habilitar WordWrap en el label de título de Latencia
+        lblLatencyTitle.GetType().GetProperty("UseCompatibleTextRendering")?.SetValue(lblLatencyTitle, false);
 
         lblLatencyValue = new Label
         {
@@ -201,6 +231,9 @@ public partial class Form1
 
         pnlHead.Controls.Add(lblLatencyValue);
         pnlHead.Controls.Add(lblLatencyTitle);
+
+        // Reajustar altura del pnlHead al cambiar tamaño de la tarjeta
+        cardLatency.SizeChanged += (s, e) => AdjustTitlePanelHeight(pnlHead, lblLatencyTitle, lblLatencyValue.Height + 6);
 
         // Gráfico cartesiano de latencia
         _latencyValues = new ChartValues<ObservableValue>();
@@ -277,9 +310,11 @@ public partial class Form1
             ForeColor = System.Drawing.Color.White,
             AutoSize = false,
             Dock = DockStyle.Top,
-            TextAlign = ContentAlignment.MiddleLeft,
+            TextAlign = ContentAlignment.TopLeft,
             Height = 42,
-            MaximumSize = new Size(0, 0)
+            MaximumSize = new Size(0, 0),
+            UseMnemonic = false,
+            AutoEllipsis = false
         };
 
         lblCpuValue = new Label
@@ -296,6 +331,9 @@ public partial class Form1
 
         pnlHead.Controls.Add(lblCpuValue);
         pnlHead.Controls.Add(lblCpuTitle);
+
+        // Reajustar altura del pnlHead al cambiar tamaño de la tarjeta
+        cardCpu.SizeChanged += (s, e) => AdjustTitlePanelHeight(pnlHead, lblCpuTitle, lblCpuValue.Height + 6);
 
         _cpuValues = new ChartValues<ObservableValue>();
         for (int i = 0; i < 10; i++) _cpuValues.Add(new ObservableValue(0));
@@ -372,11 +410,16 @@ public partial class Form1
             ForeColor = System.Drawing.Color.White,
             AutoSize = false,
             Dock = DockStyle.Top,
-            TextAlign = ContentAlignment.MiddleLeft,
+            TextAlign = ContentAlignment.TopLeft,
             Height = 42,
-            MaximumSize = new Size(0, 0)
+            MaximumSize = new Size(0, 0),
+            UseMnemonic = false,
+            AutoEllipsis = false
         };
         pnlHead.Controls.Add(lblFilterTitle);
+
+        // Reajustar altura del pnlHead al cambiar tamaño de la tarjeta
+        cardFilter.SizeChanged += (s, e) => AdjustTitlePanelHeight(pnlHead, lblFilterTitle, 6);
 
         // Panel inferior con resumen y etiquetas numéricas exactas
         var pnlBottom = new FlowLayoutPanel
