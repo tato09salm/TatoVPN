@@ -176,7 +176,7 @@ public partial class Form1
         btnServerToggle.Click += BtnServerToggle_Click;
         panelServerControlCard.Controls.Add(btnServerToggle);
 
-        // Selector de Modo / Propósito del Servidor
+        // ── Grupo 1: Selector de Modo / Propósito (Panel propio para que sea grupo independiente) ──
         lblPurposeTitle = new Label
         {
             Text = "🎯 Modo de Operación / Propósito:",
@@ -187,28 +187,39 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(lblPurposeTitle);
 
+        // Panel contenedor del grupo de propósito — imprescindible para que WinForms
+        // trate estos RadioButtons como grupo separado al de 'Modo de Red' más abajo.
+        var grpPurpose = new Panel
+        {
+            Location = new Point(16, 156),
+            Size = new Size(368, 52),
+            BackColor = Color.Transparent
+        };
+
         rbServerPurposeFiles = new RadioButton
         {
             Text = "📁 Conexión Remota (Archivos / SFTP)",
-            Location = new Point(16, 156),
+            Location = new Point(0, 0),
             Size = new Size(368, 24),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             Checked = true
         };
         rbServerPurposeFiles.CheckedChanged += (s, e) => UpdatePurposeUiState();
-        panelServerControlCard.Controls.Add(rbServerPurposeFiles);
+        grpPurpose.Controls.Add(rbServerPurposeFiles);
 
         rbServerPurposeHttp = new RadioButton
         {
             Text = "📱 Compartir Internet (HTTP Injector / Proxy)",
-            Location = new Point(16, 182),
+            Location = new Point(0, 26),
             Size = new Size(368, 24),
             ForeColor = Color.FromArgb(203, 213, 225),
             Font = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
         rbServerPurposeHttp.CheckedChanged += (s, e) => UpdatePurposeUiState();
-        panelServerControlCard.Controls.Add(rbServerPurposeHttp);
+        grpPurpose.Controls.Add(rbServerPurposeHttp);
+
+        panelServerControlCard.Controls.Add(grpPurpose);
 
         // Panel de Estado y Acción de OpenSSH de Windows
         panelOpenSshCard = new Panel
@@ -382,7 +393,7 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(numServerProxyPort);
 
-        // Modo de Red
+        // ── Grupo 2: Modo de Red (Panel propio — grupo independiente de Propósito) ──
         var lblModeTitle = new Label
         {
             Text = "🌐 Modo de Red / Alcance",
@@ -393,10 +404,19 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(lblModeTitle);
 
+        // Panel contenedor del grupo de red — imprescindible para que WinForms
+        // trate estos RadioButtons como grupo separado al de 'Propósito' de arriba.
+        var grpNetwork = new Panel
+        {
+            Location = new Point(16, 454),
+            Size = new Size(368, 110),
+            BackColor = Color.Transparent
+        };
+
         rbServerLan = new RadioButton
         {
             Text = "📶 Red Local (Wi-Fi / LAN / Hotspot)",
-            Location = new Point(16, 454),
+            Location = new Point(0, 0),
             Size = new Size(368, 24),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 8.8F, FontStyle.Bold),
@@ -412,22 +432,22 @@ public partial class Form1
                 UpdateConnectionStringPreview();
             }
         };
-        panelServerControlCard.Controls.Add(rbServerLan);
+        grpNetwork.Controls.Add(rbServerLan);
 
         var lblLanDesc = new Label
         {
             Text = "Para laptops o celulares conectados a la misma red Wi-Fi o zona compartida.",
             Font = new Font("Segoe UI", 7.8F),
             ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(36, 478),
+            Location = new Point(20, 24),
             Size = new Size(348, 26)
         };
-        panelServerControlCard.Controls.Add(lblLanDesc);
+        grpNetwork.Controls.Add(lblLanDesc);
 
         rbServerRemote = new RadioButton
         {
             Text = "🌍 Acceso Remoto (Túnel Inverso / Internet)",
-            Location = new Point(16, 508),
+            Location = new Point(0, 54),
             Size = new Size(368, 24),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 8.8F, FontStyle.Bold)
@@ -454,17 +474,19 @@ public partial class Form1
                 }
             }
         };
-        panelServerControlCard.Controls.Add(rbServerRemote);
+        grpNetwork.Controls.Add(rbServerRemote);
 
         var lblRemoteDesc = new Label
         {
             Text = "Permite conectar desde cualquier red o datos móviles mediante túnel inverso sin abrir puertos.",
             Font = new Font("Segoe UI", 7.8F),
             ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(36, 532),
+            Location = new Point(20, 78),
             Size = new Size(348, 30)
         };
-        panelServerControlCard.Controls.Add(lblRemoteDesc);
+        grpNetwork.Controls.Add(lblRemoteDesc);
+
+        panelServerControlCard.Controls.Add(grpNetwork);
 
         panelModoServidor.Controls.Add(panelServerControlCard);
     }
@@ -883,6 +905,7 @@ public partial class Form1
         {
             if (!string.IsNullOrWhiteSpace(_remotePublicHost) && _remotePublicPort.HasValue)
             {
+                // Túnel activo: usar host y puerto públicos reales
                 host = _remotePublicHost;
                 port = _remotePublicPort.Value;
             }
@@ -894,13 +917,16 @@ public partial class Form1
             {
                 var parts = txtServerPublicHost.Text.Split(':');
                 host = parts[0];
-                int.TryParse(parts[1], out port);
+                int.TryParse(parts.Length > 1 ? parts[1] : "0", out port);
                 if (port == 0) port = defaultPort;
             }
             else
             {
-                host = txtServerLocalIp.Text;
-                port = defaultPort;
+                // Túnel aún no disponible: mostrar aviso en la credencial
+                txtServerConnectionString.Text = rbServerRemote.Checked && !_isServerRunning
+                    ? "(Enciende el servidor para obtener el enlace público)"
+                    : "(Esperando túnel público...)";
+                return;
             }
         }
         else
@@ -909,10 +935,15 @@ public partial class Form1
             port = defaultPort;
         }
 
-        string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isFiles ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
+        string user = string.IsNullOrWhiteSpace(txtServerUser.Text)
+            ? (isFiles ? Environment.UserName : "tatouser")
+            : txtServerUser.Text.Trim();
         string pass = txtServerPass.Text.Trim();
 
-        txtServerConnectionString.Text = $"{host}:{port}@{user}:{pass}";
+        // Formato legible: host:puerto@usuario:contraseña
+        // Si la contraseña está vacía se muestra un marcador claro para que el usuario la complete.
+        string passDisplay = string.IsNullOrEmpty(pass) ? "<ingresa_contraseña>" : pass;
+        txtServerConnectionString.Text = $"{host}:{port}@{user}:{passDisplay}";
     }
 
     private void AppendServerLog(string message)
