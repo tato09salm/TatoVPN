@@ -35,6 +35,7 @@ partial class Form1
         lblSidebarStatusTitle = new Label();
         panelNavButtons = new Panel();
         btnNavAcerca = new Button();
+        btnNavConexionRemota = new Button();
         btnNavModoServidor = new Button();
         btnNavFiltro = new Button();
         btnNavRegistro = new Button();
@@ -360,6 +361,7 @@ partial class Form1
         // panelNavButtons
         // 
         panelNavButtons.Controls.Add(btnNavAcerca);
+        panelNavButtons.Controls.Add(btnNavConexionRemota);
         panelNavButtons.Controls.Add(btnNavModoServidor);
         panelNavButtons.Controls.Add(btnNavRegistro);
         panelNavButtons.Controls.Add(btnNavFiltro);
@@ -367,9 +369,9 @@ partial class Form1
         panelNavButtons.Controls.Add(btnNavConfigSsh);
         panelNavButtons.Controls.Add(btnNavInicio);
         panelNavButtons.Controls.Add(btnNavDashboard);
-        panelNavButtons.Location = new Point(12, 150);
+        panelNavButtons.Location = new Point(12, 146);
         panelNavButtons.Name = "panelNavButtons";
-        panelNavButtons.Size = new Size(256, 390);
+        panelNavButtons.Size = new Size(256, 432);
         panelNavButtons.TabIndex = 1;
         // 
         // btnNavAcerca
@@ -380,15 +382,33 @@ partial class Form1
         btnNavAcerca.FlatStyle = FlatStyle.Flat;
         btnNavAcerca.Font = new Font("Segoe UI", 9F);
         btnNavAcerca.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavAcerca.Location = new Point(0, 336);
+        btnNavAcerca.Location = new Point(0, 384);
         btnNavAcerca.Name = "btnNavAcerca";
         btnNavAcerca.Padding = new Padding(8, 0, 0, 0);
         btnNavAcerca.Size = new Size(256, 42);
-        btnNavAcerca.TabIndex = 7;
+        btnNavAcerca.TabIndex = 8;
         btnNavAcerca.Text = "ℹ️  Acerca de";
         btnNavAcerca.TextAlign = ContentAlignment.MiddleLeft;
         btnNavAcerca.UseVisualStyleBackColor = false;
         btnNavAcerca.Click += btnNavAcerca_Click;
+        // 
+        // btnNavConexionRemota
+        // 
+        btnNavConexionRemota.BackColor = Color.Transparent;
+        btnNavConexionRemota.Cursor = Cursors.Hand;
+        btnNavConexionRemota.FlatAppearance.BorderSize = 0;
+        btnNavConexionRemota.FlatStyle = FlatStyle.Flat;
+        btnNavConexionRemota.Font = new Font("Segoe UI", 9F);
+        btnNavConexionRemota.ForeColor = Color.FromArgb(148, 163, 184);
+        btnNavConexionRemota.Location = new Point(0, 336);
+        btnNavConexionRemota.Name = "btnNavConexionRemota";
+        btnNavConexionRemota.Padding = new Padding(8, 0, 0, 0);
+        btnNavConexionRemota.Size = new Size(256, 42);
+        btnNavConexionRemota.TabIndex = 7;
+        btnNavConexionRemota.Text = "📁  Conexión Remota";
+        btnNavConexionRemota.TextAlign = ContentAlignment.MiddleLeft;
+        btnNavConexionRemota.UseVisualStyleBackColor = false;
+        btnNavConexionRemota.Click += btnNavConexionRemota_Click;
         // 
         // btnNavModoServidor
         // 
@@ -2601,6 +2621,7 @@ partial class Form1
     private System.Windows.Forms.Button btnNavFiltro;
     private System.Windows.Forms.Button btnNavRegistro;
     private System.Windows.Forms.Button btnNavModoServidor;
+    private System.Windows.Forms.Button btnNavConexionRemota;
     private System.Windows.Forms.Button btnNavAcerca;
     private System.Windows.Forms.Panel panelModoServidor;
     private System.Windows.Forms.Panel panelSidebarStatusCard;

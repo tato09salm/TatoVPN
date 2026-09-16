@@ -17,11 +17,33 @@ public partial class Form1
     private Label lblServerStatusBadge = null!;
     private Label lblServerStatusDesc = null!;
     private Button btnServerToggle = null!;
+
+    // Selector de Modo / Propósito del Servidor
+    private Label lblPurposeTitle = null!;
+    private RadioButton rbServerPurposeFiles = null!;
+    private RadioButton rbServerPurposeHttp = null!;
+
+    // Panel de estado y acción del Servidor OpenSSH de Windows
+    private Panel panelOpenSshCard = null!;
+    private Label lblOpenSshStatus = null!;
+    private Button btnOpenSshAction = null!;
+
+    // Credenciales
+    private Label lblCredTitle = null!;
+    private Label lblUser = null!;
     private TextBox txtServerUser = null!;
+    private Label lblPass = null!;
     private TextBox txtServerPass = null!;
     private Button btnTogglePassVisibility = null!;
+    private Label lblPassHelp = null!;
+
+    // Puertos
+    private Label lblServerSshPort = null!;
     private NumericUpDown numServerSshPort = null!;
+    private Label lblServerProxyPort = null!;
     private NumericUpDown numServerProxyPort = null!;
+
+    // Modo de Red
     private RadioButton rbServerLan = null!;
     private RadioButton rbServerRemote = null!;
 
@@ -51,6 +73,7 @@ public partial class Form1
     // Reglas de Firewall de Windows
     private const string FwRuleSsh = "TatoVPN_Server_SSH_Inbound";
     private const string FwRuleProxy = "TatoVPN_Server_Proxy_Inbound";
+    private const string FwRuleOpenSsh = "TatoVPN_Server_OpenSSH_Inbound";
 
     private void InitializeModoServidor()
     {
@@ -77,7 +100,7 @@ public partial class Form1
 
         lblModoServidorSub = new Label
         {
-            Text = "Convierte esta laptop en servidor SSH y Proxy real para conectar HTTP Injector desde tu celular.",
+            Text = "Servidor para transferir archivos vía Conexión Remota (SFTP) o compartir internet con HTTP Injector.",
             Font = new Font("Segoe UI", 8.8F),
             ForeColor = Color.FromArgb(148, 163, 184),
             Location = new Point(20, 47),
@@ -92,8 +115,9 @@ public partial class Form1
         BuildServerInfoCard();
 
         RefreshLocalIp();
+        UpdatePurposeUiState();
         UpdateConnectionStringPreview();
-        AppendServerLog("ℹ️ Módulo Modo Servidor listo con soporte completo para SSH y HTTP Injector.");
+        AppendServerLog("ℹ️ Módulo Modo Servidor listo con soporte para Conexión Remota (SFTP) y HTTP Injector.");
     }
 
     private void BuildServerControlCard()
@@ -101,7 +125,7 @@ public partial class Form1
         panelServerControlCard = new Panel
         {
             Location = new Point(20, 75),
-            Size = new Size(400, 580),
+            Size = new Size(400, 595),
             BackColor = Color.FromArgb(22, 32, 48),
             BorderStyle = BorderStyle.None
         };
@@ -109,8 +133,8 @@ public partial class Form1
         // Estado del Servidor
         var pnlStatusBox = new Panel
         {
-            Location = new Point(16, 16),
-            Size = new Size(368, 80),
+            Location = new Point(16, 14),
+            Size = new Size(368, 68),
             BackColor = Color.FromArgb(15, 23, 42)
         };
 
@@ -119,8 +143,8 @@ public partial class Form1
             Text = "● SERVIDOR DETENIDO",
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(239, 68, 68),
-            Location = new Point(14, 12),
-            Size = new Size(340, 26)
+            Location = new Point(12, 10),
+            Size = new Size(344, 24)
         };
 
         lblServerStatusDesc = new Label
@@ -128,8 +152,8 @@ public partial class Form1
             Text = "El servidor está apagado. Presiona encender para activarlo.",
             Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(14, 40),
-            Size = new Size(340, 30)
+            Location = new Point(12, 36),
+            Size = new Size(344, 26)
         };
 
         pnlStatusBox.Controls.Add(lblServerStatusBadge);
@@ -140,8 +164,8 @@ public partial class Form1
         btnServerToggle = new Button
         {
             Text = "▶  Encender Servidor",
-            Location = new Point(16, 105),
-            Size = new Size(368, 44),
+            Location = new Point(16, 88),
+            Size = new Size(368, 40),
             BackColor = Color.FromArgb(234, 88, 12),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -152,33 +176,111 @@ public partial class Form1
         btnServerToggle.Click += BtnServerToggle_Click;
         panelServerControlCard.Controls.Add(btnServerToggle);
 
-        // Título de Sección Credenciales
-        var lblCredTitle = new Label
+        // Selector de Modo / Propósito del Servidor
+        lblPurposeTitle = new Label
         {
-            Text = "🔑 Credenciales de la Cuenta SSH",
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+            Text = "🎯 Modo de Operación / Propósito:",
+            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 165),
-            Size = new Size(368, 24)
+            Location = new Point(16, 134),
+            Size = new Size(368, 20)
+        };
+        panelServerControlCard.Controls.Add(lblPurposeTitle);
+
+        rbServerPurposeFiles = new RadioButton
+        {
+            Text = "📁 Conexión Remota (Archivos / SFTP)",
+            Location = new Point(16, 156),
+            Size = new Size(368, 24),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Checked = true
+        };
+        rbServerPurposeFiles.CheckedChanged += (s, e) => UpdatePurposeUiState();
+        panelServerControlCard.Controls.Add(rbServerPurposeFiles);
+
+        rbServerPurposeHttp = new RadioButton
+        {
+            Text = "📱 Compartir Internet (HTTP Injector / Proxy)",
+            Location = new Point(16, 182),
+            Size = new Size(368, 24),
+            ForeColor = Color.FromArgb(203, 213, 225),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+        };
+        rbServerPurposeHttp.CheckedChanged += (s, e) => UpdatePurposeUiState();
+        panelServerControlCard.Controls.Add(rbServerPurposeHttp);
+
+        // Panel de Estado y Acción de OpenSSH de Windows
+        panelOpenSshCard = new Panel
+        {
+            Location = new Point(16, 210),
+            Size = new Size(368, 58),
+            BackColor = Color.FromArgb(15, 23, 42)
+        };
+
+        lblOpenSshStatus = new Label
+        {
+            Text = "● Verificando Servidor OpenSSH...",
+            Location = new Point(10, 8),
+            Size = new Size(240, 42),
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = Color.FromArgb(148, 163, 184)
+        };
+        panelOpenSshCard.Controls.Add(lblOpenSshStatus);
+
+        btnOpenSshAction = new Button
+        {
+            Text = "🛡️ Instalar",
+            Location = new Point(255, 12),
+            Size = new Size(103, 34),
+            BackColor = Color.FromArgb(220, 38, 38),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
+        btnOpenSshAction.FlatAppearance.BorderSize = 0;
+        btnOpenSshAction.Click += BtnOpenSshAction_Click;
+        panelOpenSshCard.Controls.Add(btnOpenSshAction);
+
+        panelServerControlCard.Controls.Add(panelOpenSshCard);
+
+        // Sección Credenciales
+        lblCredTitle = new Label
+        {
+            Text = "🔑 Credenciales de Windows (OpenSSH):",
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(226, 232, 240),
+            Location = new Point(16, 274),
+            Size = new Size(368, 20)
         };
         panelServerControlCard.Controls.Add(lblCredTitle);
 
-        // Usuario SSH
-        var lblUser = new Label
+        lblUser = new Label
         {
-            Text = "Usuario:",
-            Font = new Font("Segoe UI", 8.5F),
+            Text = "Usuario Windows:",
+            Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 195),
-            Size = new Size(100, 20)
+            Location = new Point(16, 296),
+            Size = new Size(175, 18)
         };
         panelServerControlCard.Controls.Add(lblUser);
 
+        lblPass = new Label
+        {
+            Text = "Contraseña Windows:",
+            Font = new Font("Segoe UI", 8.2F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(200, 296),
+            Size = new Size(184, 18)
+        };
+        panelServerControlCard.Controls.Add(lblPass);
+
         txtServerUser = new TextBox
         {
-            Text = "tatouser",
-            Location = new Point(16, 218),
-            Size = new Size(368, 27),
+            Text = Environment.UserName,
+            Location = new Point(16, 316),
+            Size = new Size(175, 27),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
@@ -187,22 +289,11 @@ public partial class Form1
         txtServerUser.TextChanged += (s, e) => UpdateConnectionStringPreview();
         panelServerControlCard.Controls.Add(txtServerUser);
 
-        // Contraseña SSH
-        var lblPass = new Label
-        {
-            Text = "Contraseña:",
-            Font = new Font("Segoe UI", 8.5F),
-            ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 255),
-            Size = new Size(100, 20)
-        };
-        panelServerControlCard.Controls.Add(lblPass);
-
         txtServerPass = new TextBox
         {
-            Text = "tatopass123",
-            Location = new Point(16, 278),
-            Size = new Size(300, 27),
+            Text = "",
+            Location = new Point(200, 316),
+            Size = new Size(135, 27),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
@@ -215,8 +306,8 @@ public partial class Form1
         btnTogglePassVisibility = new Button
         {
             Text = "👁️",
-            Location = new Point(322, 277),
-            Size = new Size(62, 29),
+            Location = new Point(339, 315),
+            Size = new Size(45, 29),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
@@ -230,46 +321,57 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(btnTogglePassVisibility);
 
-        // Puerto SSH & Proxy
-        var lblSshPort = new Label
+        lblPassHelp = new Label
         {
-            Text = "Puerto SSH (HTTP Injector):",
-            Font = new Font("Segoe UI", 8.5F),
-            ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 318),
-            Size = new Size(170, 20)
+            Text = "💡 Usa el usuario y contraseña de tu cuenta de Windows en esta laptop.",
+            Font = new Font("Segoe UI", 7.8F),
+            ForeColor = Color.FromArgb(250, 204, 21),
+            Location = new Point(16, 346),
+            Size = new Size(368, 28)
         };
-        panelServerControlCard.Controls.Add(lblSshPort);
+        panelServerControlCard.Controls.Add(lblPassHelp);
+
+        // Puertos
+        lblServerSshPort = new Label
+        {
+            Text = "Puerto OpenSSH (SFTP):",
+            Font = new Font("Segoe UI", 8.2F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(16, 376),
+            Size = new Size(175, 18)
+        };
+        panelServerControlCard.Controls.Add(lblServerSshPort);
+
+        lblServerProxyPort = new Label
+        {
+            Text = "Puerto Proxy (HTTP/SOCKS):",
+            Font = new Font("Segoe UI", 8.2F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(200, 376),
+            Size = new Size(184, 18)
+        };
+        panelServerControlCard.Controls.Add(lblServerProxyPort);
 
         numServerSshPort = new NumericUpDown
         {
-            Location = new Point(16, 340),
-            Size = new Size(170, 27),
+            Location = new Point(16, 396),
+            Size = new Size(175, 27),
             Minimum = 1,
             Maximum = 65535,
-            Value = 2222,
+            Value = 22,
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Segoe UI", 9.5F)
+            Font = new Font("Segoe UI", 9.5F),
+            Enabled = false
         };
         numServerSshPort.ValueChanged += (s, e) => UpdateConnectionStringPreview();
         panelServerControlCard.Controls.Add(numServerSshPort);
 
-        var lblProxyPort = new Label
-        {
-            Text = "Puerto Proxy (HTTP/SOCKS):",
-            Font = new Font("Segoe UI", 8.5F),
-            ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(206, 318),
-            Size = new Size(178, 20)
-        };
-        panelServerControlCard.Controls.Add(lblProxyPort);
-
         numServerProxyPort = new NumericUpDown
         {
-            Location = new Point(206, 340),
-            Size = new Size(178, 27),
+            Location = new Point(200, 396),
+            Size = new Size(184, 27),
             Minimum = 1,
             Maximum = 65535,
             Value = 1080,
@@ -284,20 +386,20 @@ public partial class Form1
         var lblModeTitle = new Label
         {
             Text = "🌐 Modo de Red / Alcance",
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 385),
-            Size = new Size(368, 24)
+            Location = new Point(16, 432),
+            Size = new Size(368, 20)
         };
         panelServerControlCard.Controls.Add(lblModeTitle);
 
         rbServerLan = new RadioButton
         {
-            Text = "📶 Red Local (Wi-Fi / LAN / Hotspot Celular)",
-            Location = new Point(16, 412),
-            Size = new Size(368, 26),
+            Text = "📶 Red Local (Wi-Fi / LAN / Hotspot)",
+            Location = new Point(16, 454),
+            Size = new Size(368, 24),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold),
             Checked = true
         };
         rbServerLan.CheckedChanged += (s, e) =>
@@ -314,21 +416,21 @@ public partial class Form1
 
         var lblLanDesc = new Label
         {
-            Text = "Para celulares conectados a la misma red Wi-Fi o compartiendo zona Wi-Fi a tu laptop.",
-            Font = new Font("Segoe UI", 8F),
+            Text = "Para laptops o celulares conectados a la misma red Wi-Fi o zona compartida.",
+            Font = new Font("Segoe UI", 7.8F),
             ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(36, 438),
-            Size = new Size(348, 32)
+            Location = new Point(36, 478),
+            Size = new Size(348, 26)
         };
         panelServerControlCard.Controls.Add(lblLanDesc);
 
         rbServerRemote = new RadioButton
         {
             Text = "🌍 Acceso Remoto (Túnel Inverso / Internet)",
-            Location = new Point(16, 475),
-            Size = new Size(368, 26),
+            Location = new Point(16, 508),
+            Size = new Size(368, 24),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold)
         };
         rbServerRemote.CheckedChanged += (s, e) =>
         {
@@ -347,7 +449,8 @@ public partial class Form1
 
                 if (_isServerRunning && _remoteTunnel == null)
                 {
-                    StartRemoteTunnel((int)numServerSshPort.Value);
+                    bool isFiles = rbServerPurposeFiles.Checked;
+                    StartRemoteTunnel(isFiles ? WindowsOpenSshService.OpenSshPort : (int)numServerSshPort.Value, isRemoteFiles: isFiles);
                 }
             }
         };
@@ -355,11 +458,11 @@ public partial class Form1
 
         var lblRemoteDesc = new Label
         {
-            Text = "Permite conectar desde datos móviles a través de un túnel inverso sin abrir puertos.",
-            Font = new Font("Segoe UI", 8F),
+            Text = "Permite conectar desde cualquier red o datos móviles mediante túnel inverso sin abrir puertos.",
+            Font = new Font("Segoe UI", 7.8F),
             ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(36, 501),
-            Size = new Size(348, 32)
+            Location = new Point(36, 532),
+            Size = new Size(348, 30)
         };
         panelServerControlCard.Controls.Add(lblRemoteDesc);
 
@@ -371,7 +474,7 @@ public partial class Form1
         panelServerInfoCard = new Panel
         {
             Location = new Point(435, 75),
-            Size = new Size(400, 580),
+            Size = new Size(400, 595),
             BackColor = Color.FromArgb(22, 32, 48),
             BorderStyle = BorderStyle.None
         };
@@ -535,7 +638,10 @@ public partial class Form1
             if (!string.IsNullOrWhiteSpace(txtServerConnectionString.Text))
             {
                 Clipboard.SetText(txtServerConnectionString.Text);
-                ShowNotificationTip("¡Configuración copiada! Pégala en tu celular o TatoVPN.");
+                string tip = rbServerPurposeFiles.Checked
+                    ? "¡Configuración copiada! Pégala en el módulo 'Conexión Remota' de la otra laptop."
+                    : "¡Configuración copiada! Pégala en tu celular o TatoVPN.";
+                ShowNotificationTip(tip);
             }
         };
         panelServerInfoCard.Controls.Add(btnCopyConnectionString);
@@ -569,7 +675,7 @@ public partial class Form1
         rtbServerLogs = new RichTextBox
         {
             Location = new Point(16, 296),
-            Size = new Size(368, 268),
+            Size = new Size(368, 282),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.FromArgb(148, 163, 184),
             BorderStyle = BorderStyle.None,
@@ -579,6 +685,130 @@ public partial class Form1
         panelServerInfoCard.Controls.Add(rtbServerLogs);
 
         panelModoServidor.Controls.Add(panelServerInfoCard);
+    }
+
+    private void UpdatePurposeUiState()
+    {
+        bool isFilesMode = rbServerPurposeFiles.Checked;
+
+        panelOpenSshCard.Visible = isFilesMode;
+        lblPassHelp.Visible = isFilesMode;
+
+        if (isFilesMode)
+        {
+            lblCredTitle.Text = "🔑 Credenciales de Windows (OpenSSH):";
+            lblUser.Text = "Usuario Windows:";
+            lblPass.Text = "Contraseña Windows:";
+            txtServerUser.Text = Environment.UserName;
+            lblServerSshPort.Text = "Puerto OpenSSH (SFTP):";
+            numServerSshPort.Value = WindowsOpenSshService.OpenSshPort;
+            numServerSshPort.Enabled = false;
+
+            lblServerProxyPort.Visible = false;
+            numServerProxyPort.Visible = false;
+
+            UpdateOpenSshStatusUi();
+        }
+        else
+        {
+            lblCredTitle.Text = "🔑 Credenciales de la Cuenta SSH:";
+            lblUser.Text = "Usuario:";
+            lblPass.Text = "Contraseña:";
+            txtServerUser.Text = "tatouser";
+            lblServerSshPort.Text = "Puerto SSH (HTTP Injector):";
+            numServerSshPort.Value = 2222;
+            numServerSshPort.Enabled = !_isServerRunning;
+
+            lblServerProxyPort.Visible = true;
+            numServerProxyPort.Visible = true;
+            numServerProxyPort.Enabled = !_isServerRunning;
+        }
+
+        UpdateConnectionStringPreview();
+    }
+
+    private void UpdateOpenSshStatusUi()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(UpdateOpenSshStatusUi);
+            return;
+        }
+
+        var status = WindowsOpenSshService.GetStatus();
+        switch (status)
+        {
+            case WindowsOpenSshStatus.InstalledRunning:
+                lblOpenSshStatus.Text = "● Servidor OpenSSH de Windows:\r\n  Activo y listo (puerto 22)";
+                lblOpenSshStatus.ForeColor = Color.FromArgb(34, 197, 94);
+                btnOpenSshAction.Text = "✅ Activo";
+                btnOpenSshAction.BackColor = Color.FromArgb(20, 83, 45);
+                btnOpenSshAction.Enabled = false;
+                break;
+
+            case WindowsOpenSshStatus.InstalledStopped:
+                lblOpenSshStatus.Text = "● Servidor OpenSSH de Windows:\r\n  Instalado pero detenido";
+                lblOpenSshStatus.ForeColor = Color.FromArgb(251, 191, 36);
+                btnOpenSshAction.Text = "▶ Iniciar sshd";
+                btnOpenSshAction.BackColor = Color.FromArgb(234, 88, 12);
+                btnOpenSshAction.Enabled = !_isServerRunning;
+                break;
+
+            case WindowsOpenSshStatus.NotInstalled:
+            default:
+                lblOpenSshStatus.Text = "● Servidor OpenSSH de Windows:\r\n  No instalado (requerido para SFTP)";
+                lblOpenSshStatus.ForeColor = Color.FromArgb(239, 68, 68);
+                btnOpenSshAction.Text = "🛡️ Instalar";
+                btnOpenSshAction.BackColor = Color.FromArgb(220, 38, 38);
+                btnOpenSshAction.Enabled = !_isServerRunning;
+                break;
+        }
+    }
+
+    private async void BtnOpenSshAction_Click(object? sender, EventArgs e)
+    {
+        var status = WindowsOpenSshService.GetStatus();
+        if (status == WindowsOpenSshStatus.NotInstalled)
+        {
+            var dialog = MessageBox.Show(
+                "TatoVPN instalará el 'Servidor OpenSSH' nativo de Windows (sshd).\n\n" +
+                "Esta característica permite transferir archivos de forma rápida y segura vía SFTP.\n\n" +
+                "¿Deseas proceder con la instalación con permisos de Administrador (UAC)?",
+                "Instalar Servidor OpenSSH de Windows",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (dialog != DialogResult.Yes) return;
+
+            btnOpenSshAction.Enabled = false;
+            btnOpenSshAction.Text = "⏳ Instalando...";
+            AppendServerLog("🛡️ Iniciando instalación de OpenSSH.Server con permisos de Administrador...");
+
+            var (ok, msg) = await WindowsOpenSshService.InstallAndStartAsync();
+            AppendServerLog(ok ? $"✅ {msg}" : $"❌ {msg}");
+            UpdateOpenSshStatusUi();
+
+            if (ok)
+            {
+                MessageBox.Show("¡Servidor OpenSSH de Windows instalado y activado con éxito!",
+                    "Instalación Completa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show($"No se pudo completar la instalación:\n{msg}",
+                    "Aviso de Instalación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+        else if (status == WindowsOpenSshStatus.InstalledStopped)
+        {
+            btnOpenSshAction.Enabled = false;
+            btnOpenSshAction.Text = "⏳ Iniciando...";
+            AppendServerLog("▶ Iniciando servicio OpenSSH (sshd)...");
+
+            var (ok, msg) = await WindowsOpenSshService.StartServiceAsync();
+            AppendServerLog(ok ? $"✅ {msg}" : $"❌ {msg}");
+            UpdateOpenSshStatusUi();
+        }
     }
 
     private void RefreshLocalIp()
@@ -644,6 +874,8 @@ public partial class Form1
 
     private void UpdateConnectionStringPreview()
     {
+        bool isFiles = rbServerPurposeFiles?.Checked ?? false;
+        int defaultPort = isFiles ? WindowsOpenSshService.OpenSshPort : (int)numServerSshPort.Value;
         string host;
         int port;
 
@@ -663,21 +895,21 @@ public partial class Form1
                 var parts = txtServerPublicHost.Text.Split(':');
                 host = parts[0];
                 int.TryParse(parts[1], out port);
-                if (port == 0) port = (int)numServerSshPort.Value;
+                if (port == 0) port = defaultPort;
             }
             else
             {
                 host = txtServerLocalIp.Text;
-                port = (int)numServerSshPort.Value;
+                port = defaultPort;
             }
         }
         else
         {
             host = txtServerLocalIp.Text;
-            port = (int)numServerSshPort.Value;
+            port = defaultPort;
         }
 
-        string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? "tatouser" : txtServerUser.Text.Trim();
+        string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isFiles ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
         string pass = txtServerPass.Text.Trim();
 
         txtServerConnectionString.Text = $"{host}:{port}@{user}:{pass}";
@@ -722,84 +954,147 @@ public partial class Form1
             RefreshLocalIp();
             UpdateConnectionStringPreview();
 
-            int sshPort = (int)numServerSshPort.Value;
-            int proxyPort = (int)numServerProxyPort.Value;
-            string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? "tatouser" : txtServerUser.Text.Trim();
+            bool isFilesMode = rbServerPurposeFiles.Checked;
+            string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isFilesMode ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
             string pass = txtServerPass.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(pass))
             {
-                MessageBox.Show("Por favor ingresa una contraseña para el servidor SSH.", "Contraseña requerida",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                string msg = isFilesMode
+                    ? "Por favor ingresa la contraseña de tu cuenta de Windows en esta laptop."
+                    : "Por favor ingresa una contraseña para el servidor SSH.";
+                MessageBox.Show(msg, "Contraseña requerida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Aplicar reglas temporales en Windows Firewall para permitir acceso desde el celular
-            ApplyServerFirewallRules(sshPort, proxyPort);
-
-            // Iniciar servidor SSH real
-            _localSshServer = new LocalSshServerService();
-            _localSshServer.OnLog += AppendServerLog;
-            _localSshServer.OnActiveTunnelsChanged += count =>
+            if (isFilesMode)
             {
-                _sshActiveTunnels = count;
-                UpdateServerStatusSummary();
-            };
-            _localSshServer.Start(sshPort, user, pass);
+                // Flujo A: Servidor OpenSSH nativo de Windows para Conexión Remota / Archivos (SFTP)
+                var openSshStatus = WindowsOpenSshService.GetStatus();
+                if (openSshStatus == WindowsOpenSshStatus.NotInstalled)
+                {
+                    var dlg = MessageBox.Show(
+                        "Para usar Conexión Remota (archivos SFTP), se requiere tener instalado el Servidor OpenSSH nativo de Windows.\n\n" +
+                        "¿Deseas instalarlo y activarlo ahora? (Requerirá confirmación de Administrador UAC)",
+                        "Servidor OpenSSH no instalado",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
 
-            // Iniciar servidor Proxy (HTTP CONNECT + SOCKS5)
-            _localHttpProxy = new LocalHttpProxyService();
-            _localHttpProxy.OnLog += AppendServerLog;
-            _localHttpProxy.OnActiveConnectionsChanged += count =>
-            {
-                _proxyActiveConnections = count;
-                UpdateServerStatusSummary();
-            };
-            _localHttpProxy.Start(proxyPort);
+                    if (dlg == DialogResult.Yes)
+                    {
+                        AppendServerLog("🛡️ Solicitando instalación del Servidor OpenSSH de Windows (UAC)...");
+                        var (instOk, instMsg) = await WindowsOpenSshService.InstallAndStartAsync();
+                        AppendServerLog(instOk ? $"✅ {instMsg}" : $"❌ {instMsg}");
+                        UpdateOpenSshStatusUi();
+                        if (!instOk) return;
+                    }
+                    else
+                    {
+                        AppendServerLog("⚠️ Operación cancelada: El Servidor OpenSSH es requerido para el módulo de archivos.");
+                        return;
+                    }
+                }
+                else if (openSshStatus == WindowsOpenSshStatus.InstalledStopped)
+                {
+                    AppendServerLog("▶ Iniciando servicio sshd (Servidor OpenSSH de Windows)...");
+                    var (startOk, startMsg) = await WindowsOpenSshService.StartServiceAsync();
+                    AppendServerLog(startOk ? $"✅ {startMsg}" : $"❌ {startMsg}");
+                    UpdateOpenSshStatusUi();
+                    if (!startOk) return;
+                }
 
-            // Iniciar BadVPN UDPGW (soporte nativo UDP y DNS para HTTP Injector en puerto 7300)
-            _badvpnUdpGw = new BadVpnUdpGwService();
-            _badvpnUdpGw.OnLog += AppendServerLog;
-            _badvpnUdpGw.Start(7300);
+                // Habilitar regla de firewall para puerto 22
+                ApplyServerFirewallRulesForFiles();
 
-            _isServerRunning = true;
+                _isServerRunning = true;
+                lblServerStatusBadge.Text = "● SERVIDOR SFTP EN LÍNEA";
+                lblServerStatusBadge.ForeColor = Color.FromArgb(34, 197, 94);
+                lblServerStatusDesc.Text = "Servidor OpenSSH activo en puerto 22. Listo para transferir archivos.";
+                btnServerToggle.Text = "⏹  Apagar Servidor";
+                btnServerToggle.BackColor = Color.FromArgb(220, 38, 38);
 
-            lblServerStatusBadge.Text = "● SERVIDOR EN LÍNEA";
-            lblServerStatusBadge.ForeColor = Color.FromArgb(34, 197, 94);
-            UpdateServerStatusSummary();
-            btnServerToggle.Text = "⏹  Apagar Servidor";
-            btnServerToggle.BackColor = Color.FromArgb(220, 38, 38);
+                LockControlsWhileRunning(true);
 
-            // Bloquear edición mientras corre
-            txtServerUser.ReadOnly = true;
-            txtServerPass.ReadOnly = true;
-            numServerSshPort.Enabled = false;
-            numServerProxyPort.Enabled = false;
-
-            if (rbServerRemote.Checked)
-            {
-                StartRemoteTunnel(sshPort);
+                if (rbServerRemote.Checked)
+                {
+                    StartRemoteTunnel(WindowsOpenSshService.OpenSshPort, isRemoteFiles: true);
+                }
+                else
+                {
+                    string localIp = txtServerLocalIp.Text;
+                    AppendServerLog("==================================================");
+                    AppendServerLog("📁 ¡SERVIDOR DE ARCHIVOS SFTP LISTO EN RED LOCAL!");
+                    AppendServerLog($"   • Host / IP Local : {localIp}");
+                    AppendServerLog($"   • Puerto          : 22");
+                    AppendServerLog($"   • Usuario Windows : {user}");
+                    AppendServerLog($"   • Contraseña      : (Tu contraseña de Windows)");
+                    AppendServerLog("💡 En la otra laptop: Abre 'Conexión Remota', ingresa estos datos y conéctate.");
+                    AppendServerLog("==================================================");
+                    AppendServerLog("⏳ Servidor listo. Esperando conexión desde otra laptop...");
+                }
             }
             else
             {
-                string localIp = txtServerLocalIp.Text;
-                AppendServerLog("==================================================");
-                AppendServerLog("📱 DATOS PARA CONFIGURAR HTTP INJECTOR EN TU CELULAR:");
-                AppendServerLog($"   • Host SSH / IP : {localIp}");
-                AppendServerLog($"   • Puerto SSH    : {sshPort}");
-                AppendServerLog($"   • Usuario       : {user}");
-                AppendServerLog($"   • Contraseña    : {pass}");
-                AppendServerLog($"   • Puerto Proxy  : {proxyPort} (Opcional para HTTP Proxy)");
-                AppendServerLog("💡 Modo recomendado en HTTP Injector: Túnel 'SSH (Directo)'");
-                AppendServerLog("==================================================");
-                AppendServerLog("🎮 SOPORTE JUEGOS Y VIDEOLLAMADAS (UDP via UDPGW):");
-                AppendServerLog("   En HTTP Injector → SSH Settings → habilita:");
-                AppendServerLog("   ✅ Enable UDP (BadVPN)");
-                AppendServerLog($"   • UDPGW Host : {localIp}");
-                AppendServerLog("   • UDPGW Port : 7300");
-                AppendServerLog("   Esto permite Free Fire, Among Us, WhatsApp/Meet, etc.");
-                AppendServerLog("==================================================");
-                AppendServerLog("⏳ Servidor listo. Esperando conexión desde tu celular...");
+                // Flujo B: Modo Servidor clásico para HTTP Injector / Celulares
+                int sshPort = (int)numServerSshPort.Value;
+                int proxyPort = (int)numServerProxyPort.Value;
+
+                // Aplicar reglas temporales en Windows Firewall para permitir acceso desde el celular
+                ApplyServerFirewallRules(sshPort, proxyPort);
+
+                // Iniciar servidor SSH real
+                _localSshServer = new LocalSshServerService();
+                _localSshServer.OnLog += AppendServerLog;
+                _localSshServer.OnActiveTunnelsChanged += count =>
+                {
+                    _sshActiveTunnels = count;
+                    UpdateServerStatusSummary();
+                };
+                _localSshServer.Start(sshPort, user, pass);
+
+                // Iniciar servidor Proxy (HTTP CONNECT + SOCKS5)
+                _localHttpProxy = new LocalHttpProxyService();
+                _localHttpProxy.OnLog += AppendServerLog;
+                _localHttpProxy.OnActiveConnectionsChanged += count =>
+                {
+                    _proxyActiveConnections = count;
+                    UpdateServerStatusSummary();
+                };
+                _localHttpProxy.Start(proxyPort);
+
+                // Iniciar BadVPN UDPGW (soporte nativo UDP y DNS para HTTP Injector en puerto 7300)
+                _badvpnUdpGw = new BadVpnUdpGwService();
+                _badvpnUdpGw.OnLog += AppendServerLog;
+                _badvpnUdpGw.Start(7300);
+
+                _isServerRunning = true;
+
+                lblServerStatusBadge.Text = "● SERVIDOR EN LÍNEA";
+                lblServerStatusBadge.ForeColor = Color.FromArgb(34, 197, 94);
+                UpdateServerStatusSummary();
+                btnServerToggle.Text = "⏹  Apagar Servidor";
+                btnServerToggle.BackColor = Color.FromArgb(220, 38, 38);
+
+                LockControlsWhileRunning(true);
+
+                if (rbServerRemote.Checked)
+                {
+                    StartRemoteTunnel(sshPort, isRemoteFiles: false);
+                }
+                else
+                {
+                    string localIp = txtServerLocalIp.Text;
+                    AppendServerLog("==================================================");
+                    AppendServerLog("📱 DATOS PARA CONFIGURAR HTTP INJECTOR EN TU CELULAR:");
+                    AppendServerLog($"   • Host SSH / IP : {localIp}");
+                    AppendServerLog($"   • Puerto SSH    : {sshPort}");
+                    AppendServerLog($"   • Usuario       : {user}");
+                    AppendServerLog($"   • Contraseña    : {pass}");
+                    AppendServerLog($"   • Puerto Proxy  : {proxyPort} (Opcional para HTTP Proxy)");
+                    AppendServerLog("💡 Modo recomendado en HTTP Injector: Túnel 'SSH (Directo)'");
+                    AppendServerLog("==================================================");
+                    AppendServerLog("⏳ Servidor listo. Esperando conexión desde tu celular...");
+                }
             }
 
             await Task.CompletedTask;
@@ -817,7 +1112,7 @@ public partial class Form1
         }
     }
 
-    private void StartRemoteTunnel(int sshPort)
+    private void StartRemoteTunnel(int sshPort, bool isRemoteFiles = false)
     {
         try
         {
@@ -832,10 +1127,10 @@ public partial class Form1
             {
                 if (InvokeRequired)
                 {
-                    BeginInvoke(() => ApplyRemoteTunnelInfo(host, port));
+                    BeginInvoke(() => ApplyRemoteTunnelInfo(host, port, isRemoteFiles));
                     return;
                 }
-                ApplyRemoteTunnelInfo(host, port);
+                ApplyRemoteTunnelInfo(host, port, isRemoteFiles);
             };
             _remoteTunnel.OnTunnelDisconnected += () =>
             {
@@ -847,7 +1142,7 @@ public partial class Form1
                 HandleRemoteTunnelDisconnected();
             };
 
-            _remoteTunnel.Start(sshPort);
+            _remoteTunnel.Start(sshPort, isRemoteFilesMode: isRemoteFiles);
         }
         catch (Exception ex)
         {
@@ -870,7 +1165,7 @@ public partial class Form1
         catch { }
     }
 
-    private void ApplyRemoteTunnelInfo(string host, int port)
+    private void ApplyRemoteTunnelInfo(string host, int port, bool isRemoteFiles)
     {
         _remotePublicHost = host;
         _remotePublicPort = port;
@@ -878,19 +1173,34 @@ public partial class Form1
         txtServerPublicHost.ForeColor = Color.FromArgb(34, 197, 94);
         UpdateConnectionStringPreview();
 
-        string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? "tatouser" : txtServerUser.Text.Trim();
+        string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isRemoteFiles ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
         string pass = txtServerPass.Text.Trim();
 
-        AppendServerLog("==================================================");
-        AppendServerLog("🌍 ¡TÚNEL DE ACCESO REMOTO LISTO!");
-        AppendServerLog("📱 DATOS PARA CONFIGURAR HTTP INJECTOR EN CUALQUIER CELULAR:");
-        AppendServerLog($"   • Host SSH / IP : {host}");
-        AppendServerLog($"   • Puerto SSH    : {port}");
-        AppendServerLog($"   • Usuario       : {user}");
-        AppendServerLog($"   • Contraseña    : {pass}");
-        AppendServerLog("💡 En HTTP Injector: Tipo de túnel 'SSH (Directo)'");
-        AppendServerLog("🌍 ¡Funciona desde cualquier celular del mundo con datos móviles!");
-        AppendServerLog("==================================================");
+        if (isRemoteFiles)
+        {
+            AppendServerLog("==================================================");
+            AppendServerLog("📁 ¡TÚNEL DE CONEXIÓN REMOTA (SFTP) LISTO!");
+            AppendServerLog("💻 DATOS PARA CONECTAR DESDE OTRA LAPTOP (TatoVPN):");
+            AppendServerLog($"   • Host Remoto    : {host}");
+            AppendServerLog($"   • Puerto Remoto  : {port}");
+            AppendServerLog($"   • Usuario Windows: {user}");
+            AppendServerLog($"   • Contraseña     : (Contraseña de tu cuenta de Windows)");
+            AppendServerLog("💡 En la otra laptop: Abre 'Conexión Remota', ingresa estos datos y conéctate.");
+            AppendServerLog("==================================================");
+        }
+        else
+        {
+            AppendServerLog("==================================================");
+            AppendServerLog("🌍 ¡TÚNEL DE ACCESO REMOTO LISTO!");
+            AppendServerLog("📱 DATOS PARA CONFIGURAR HTTP INJECTOR EN CUALQUIER CELULAR:");
+            AppendServerLog($"   • Host SSH / IP : {host}");
+            AppendServerLog($"   • Puerto SSH    : {port}");
+            AppendServerLog($"   • Usuario       : {user}");
+            AppendServerLog($"   • Contraseña    : {pass}");
+            AppendServerLog("💡 En HTTP Injector: Tipo de túnel 'SSH (Directo)'");
+            AppendServerLog("🌍 ¡Funciona desde cualquier celular del mundo con datos móviles!");
+            AppendServerLog("==================================================");
+        }
     }
 
     private void HandleRemoteTunnelDisconnected()
@@ -919,9 +1229,38 @@ public partial class Form1
 
         if (_isServerRunning)
         {
-            int sshPort = (int)numServerSshPort.Value;
-            int proxyPort = (int)numServerProxyPort.Value;
-            lblServerStatusDesc.Text = $"SSH: {sshPort} ({_sshActiveTunnels} túneles) | Proxy: {proxyPort} ({_proxyActiveConnections} conex.)";
+            if (rbServerPurposeFiles.Checked)
+            {
+                lblServerStatusDesc.Text = "Servidor OpenSSH activo en puerto 22 (SFTP listo para Conexión Remota).";
+            }
+            else
+            {
+                int sshPort = (int)numServerSshPort.Value;
+                int proxyPort = (int)numServerProxyPort.Value;
+                lblServerStatusDesc.Text = $"SSH: {sshPort} ({_sshActiveTunnels} túneles) | Proxy: {proxyPort} ({_proxyActiveConnections} conex.)";
+            }
+        }
+    }
+
+    private void LockControlsWhileRunning(bool running)
+    {
+        rbServerPurposeFiles.Enabled = !running;
+        rbServerPurposeHttp.Enabled = !running;
+        rbServerLan.Enabled = !running;
+        rbServerRemote.Enabled = !running;
+        txtServerUser.ReadOnly = running;
+        txtServerPass.ReadOnly = running;
+
+        if (rbServerPurposeFiles.Checked)
+        {
+            numServerSshPort.Enabled = false;
+            numServerProxyPort.Enabled = false;
+            btnOpenSshAction.Enabled = !running && WindowsOpenSshService.GetStatus() != WindowsOpenSshStatus.InstalledRunning;
+        }
+        else
+        {
+            numServerSshPort.Enabled = !running;
+            numServerProxyPort.Enabled = !running;
         }
     }
 
@@ -971,10 +1310,7 @@ public partial class Form1
                 btnServerToggle.BackColor = Color.FromArgb(234, 88, 12);
             }
 
-            if (txtServerUser != null && !txtServerUser.IsDisposed) txtServerUser.ReadOnly = false;
-            if (txtServerPass != null && !txtServerPass.IsDisposed) txtServerPass.ReadOnly = false;
-            if (numServerSshPort != null && !numServerSshPort.IsDisposed) numServerSshPort.Enabled = true;
-            if (numServerProxyPort != null && !numServerProxyPort.IsDisposed) numServerProxyPort.Enabled = true;
+            LockControlsWhileRunning(false);
 
             if (txtServerPublicHost != null && !txtServerPublicHost.IsDisposed)
             {
@@ -987,6 +1323,20 @@ public partial class Form1
         catch (Exception ex)
         {
             AppendServerLog($"⚠️ Error al detener: {ex.Message}");
+        }
+    }
+
+    private void ApplyServerFirewallRulesForFiles()
+    {
+        try
+        {
+            RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleOpenSsh}\"");
+            RunNetshDirect($"advfirewall firewall add rule name=\"{FwRuleOpenSsh}\" dir=in action=allow protocol=TCP localport={WindowsOpenSshService.OpenSshPort} profile=any");
+            AppendServerLog($"🛡️ Firewall de Windows configurado: puerto {WindowsOpenSshService.OpenSshPort} (OpenSSH SFTP) permitido.");
+        }
+        catch (Exception ex)
+        {
+            AppendServerLog($"⚠️ Aviso Firewall: {ex.Message}");
         }
     }
 
@@ -1011,6 +1361,7 @@ public partial class Form1
         {
             RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleSsh}\"");
             RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleProxy}\"");
+            RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleOpenSsh}\"");
         }
         catch { }
     }
@@ -1034,6 +1385,8 @@ public partial class Form1
     private void RefreshModoServidorUi()
     {
         RefreshLocalIp();
+        UpdatePurposeUiState();
         UpdateConnectionStringPreview();
+        UpdateOpenSshStatusUi();
     }
 }

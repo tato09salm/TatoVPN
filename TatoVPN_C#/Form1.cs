@@ -84,6 +84,7 @@ public partial class Form1 : Form
 
         InitializeFiltroContenido();
         InitializeDashboard();
+        InitializeConexionRemota();
 
         _uptimeTimer = new System.Windows.Forms.Timer();
         _uptimeTimer.Interval = 1000;
@@ -2077,7 +2078,7 @@ public partial class Form1 : Form
 
     private void SetNavButtonActive(Button? activeBtn)
     {
-        var allNav = new[] { btnNavDashboard, btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavFiltro, btnNavRegistro, btnNavModoServidor, btnNavAcerca };
+        var allNav = new[] { btnNavDashboard, btnNavInicio, btnNavConfigSsh, btnNavConfigs, btnNavFiltro, btnNavRegistro, btnNavModoServidor, btnNavConexionRemota, btnNavAcerca };
         foreach (var b in allNav)
         {
             if (b == null) continue; // Por si acaso no se inicializó aún
@@ -2097,6 +2098,11 @@ public partial class Form1 : Form
         {
             panelDashboard.Visible = false;
             PauseDashboardTimer();
+        }
+
+        if (activeBtn != btnNavConexionRemota && _conexionRemotaControl != null)
+        {
+            _conexionRemotaControl.Visible = false;
         }
     }
 

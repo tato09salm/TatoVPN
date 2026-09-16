@@ -27,7 +27,10 @@ public class RemoteTunnelService : IDisposable
     // Temporizador para reconexión preventiva antes del límite de 60 min de Pinggy free
     private CancellationTokenSource? _preventiveReconnectCts;
 
+    private bool _isRemoteFilesMode;
+
     public bool IsRunning => _isRunning;
+    public bool IsRemoteFilesMode => _isRemoteFilesMode;
     public string? PublicHost { get; private set; }
     public int? PublicPort { get; private set; }
 
@@ -41,14 +44,16 @@ public class RemoteTunnelService : IDisposable
         @"tcp://(?<host>[^:\s]+):(?<port>\d+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public void Start(int localPort)
+    public void Start(int localPort, bool isRemoteFilesMode = false)
     {
         lock (_lock)
         {
             if (_disposed) return;
             if (_isRunning) StopProcess();
 
-            _localPort = localPort;
+            _isRemoteFilesMode = isRemoteFilesMode;
+            // En modo Conexión Remota / archivos, el túnel inverso reenvía obligatoriamente hacia el puerto 22 de OpenSSH de Windows
+            _localPort = isRemoteFilesMode ? 22 : localPort;
             _reconnectAttempt = 0;
             _isRunning = true;
 
@@ -73,7 +78,14 @@ public class RemoteTunnelService : IDisposable
             return;
         }
 
-        OnLog?.Invoke("🌍 Iniciando túnel inverso público TCP...");
+        if (_isRemoteFilesMode)
+        {
+            OnLog?.Invoke("🌍 Iniciando túnel inverso público para Conexión Remota (reenviando a Servidor OpenSSH en puerto 22)...");
+        }
+        else
+        {
+            OnLog?.Invoke($"🌍 Iniciando túnel inverso público TCP (reenviando a puerto local {_localPort})...");
+        }
 
         // Usamos Pinggy en puerto 443 (SSL) con usuario tcp@a.pinggy.io
         // -T: Desactiva asignación de pseudo-terminal (evita bloqueos de consola)
@@ -252,9 +264,19 @@ public class RemoteTunnelService : IDisposable
                 PublicHost = host;
                 PublicPort = port;
                 _reconnectAttempt = 0; // Conexión exitosa: resetear backoff
-                OnLog?.Invoke($"🎉 ¡Túnel Inverso Remoto CONECTADO con éxito!");
-                OnLog?.Invoke($"   🌐 Host Público : {host}");
-                OnLog?.Invoke($"   🔌 Puerto Remoto: {port}");
+                if (_isRemoteFilesMode)
+                {
+                    OnLog?.Invoke($"🎉 ¡Túnel Inverso para Conexión Remota (SFTP) CONECTADO con éxito!");
+                    OnLog?.Invoke($"   🌐 Host Público : {host}");
+                    OnLog?.Invoke($"   🔌 Puerto Remoto: {port}");
+                    OnLog?.Invoke($"   📁 Reenviando al Servidor OpenSSH nativo de Windows (puerto 22)");
+                }
+                else
+                {
+                    OnLog?.Invoke($"🎉 ¡Túnel Inverso Remoto CONECTADO con éxito!");
+                    OnLog?.Invoke($"   🌐 Host Público : {host}");
+                    OnLog?.Invoke($"   🔌 Puerto Remoto: {port}");
+                }
                 OnTunnelConnected?.Invoke(host, port);
 
                 // Programar reconexión preventiva antes de los 60 min de Pinggy
