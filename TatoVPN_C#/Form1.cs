@@ -88,6 +88,7 @@ public partial class Form1 : Form
         InitializeEscritorioRemoto();
         SetupResponsiveConfigSshLayout();
         SetupResponsiveRegistroLayout();
+        SetupResponsiveSidebarLayout();
 
         _uptimeTimer = new System.Windows.Forms.Timer();
         _uptimeTimer.Interval = 1000;

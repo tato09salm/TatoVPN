@@ -49,6 +49,7 @@ public class EscritorioRemotoControl : UserControl
     private Panel panelDesktop      = null!;
 
     // ── Vista 1: Formulario de conexión ─────────────────────────────────
+    private TableLayoutPanel gridCenter = null!;
     private Panel  panelCardConexion   = null!;
     private Panel  pnlStatusBox        = null!;
     private Label  lblStatusDot        = null!;
@@ -125,8 +126,8 @@ public class EscritorioRemotoControl : UserControl
         this.BackColor = Color.FromArgb(11, 15, 25);
         this.Font      = new Font("Segoe UI", 9F);
 
-        BuildHeader();
         BuildBodyPanel();
+        BuildHeader();
         BuildConnectionView();
         BuildDesktopView();
 
@@ -170,13 +171,16 @@ public class EscritorioRemotoControl : UserControl
             Padding   = new Padding(0, 0, 0, 4)
         }, 0, 1);
 
-        this.Controls.Add(tbl);
-        this.Controls.Add(new Panel
+        var sep = new Panel
         {
             Height    = 1,
             Dock      = DockStyle.Top,
             BackColor = Color.FromArgb(30, 41, 59)
-        });
+        };
+
+        this.Controls.Add(sep);
+        this.Controls.Add(tbl);
+        tbl.BringToFront();
     }
 
     private void BuildBodyPanel()
@@ -185,147 +189,248 @@ public class EscritorioRemotoControl : UserControl
         {
             Dock       = DockStyle.Fill,
             BackColor  = Color.FromArgb(11, 15, 25),
-            Padding    = new Padding(20, 12, 20, 12),
-            AutoScroll = true
+            Padding    = new Padding(0),
+            AutoScroll = false
         };
         this.Controls.Add(panelBody);
+        panelBody.SendToBack();
     }
 
     private void BuildConnectionView()
     {
-        panelConexion = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, AutoScroll = true };
-        panelConexion.Resize += (s, e) => CenterConnectionCard();
-
-        panelCardConexion = new Panel
+        panelConexion = new Panel
         {
-            Location  = new Point(20, 20),
-            Size      = new Size(460, 380),
-            BackColor = Color.FromArgb(22, 32, 48)
+            Dock       = DockStyle.Fill,
+            BackColor  = Color.FromArgb(11, 15, 25),
+            AutoScroll = true
         };
-        panelCardConexion.Resize += (s, e) => AdjustConnectionCardControls();
+        panelConexion.Resize += (s, e) => UpdateCardSizing();
 
-        // ── Status badge ────────────────────────────────────────────────
-        pnlStatusBox = new Panel
+        // ── Grilla 3x3 para centrado automático sin cálculos manuales ───
+        gridCenter = new TableLayoutPanel
         {
-            Location  = new Point(16, 14),
-            Size      = new Size(428, 62),
-            BackColor = Color.FromArgb(15, 23, 42)
+            Dock        = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount    = 3,
+            BackColor   = Color.Transparent,
+            Margin      = new Padding(0),
+            Padding     = new Padding(0)
         };
+        gridCenter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        gridCenter.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        gridCenter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+
+        gridCenter.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+        gridCenter.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gridCenter.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+
+        // ── Card de conexión: TableLayoutPanel vertical responsivo ──────
+        var cardLayout = new TableLayoutPanel
+        {
+            AutoSize     = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor    = Color.FromArgb(22, 32, 48),
+            Padding      = new Padding(24, 20, 24, 20),
+            ColumnCount  = 1,
+            Anchor       = AnchorStyles.None,
+            Margin       = new Padding(12)
+        };
+        cardLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        cardLayout.Resize += (s, e) => AdjustConnectionCardControls();
+        panelCardConexion = cardLayout;
+
+        // Fila 0: Título de la tarjeta
+        var lblCardTitle = new Label
+        {
+            Text      = "🖥️  Conexión de Escritorio Remoto",
+            Font      = new Font("Segoe UI", 11.5F, FontStyle.Bold),
+            ForeColor = Color.White,
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 3)
+        };
+        cardLayout.Controls.Add(lblCardTitle);
+
+        // Fila 1: Subtítulo de la tarjeta
+        var lblCardSub = new Label
+        {
+            Text      = "Ingresa el host y puerto provistos por el Modo Servidor en la laptop remota.",
+            Font      = new Font("Segoe UI", 8.5F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 14)
+        };
+        cardLayout.Controls.Add(lblCardSub);
+
+        // Fila 2: Banner de Estado (TableLayoutPanel interno estructurado)
+        var tableStatus = new TableLayoutPanel
+        {
+            Dock         = DockStyle.Top,
+            AutoSize     = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount  = 1,
+            RowCount     = 2,
+            BackColor    = Color.FromArgb(15, 23, 42),
+            Padding      = new Padding(12, 10, 12, 10),
+            Margin       = new Padding(0, 0, 0, 16)
+        };
+        tableStatus.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        tableStatus.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        tableStatus.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var flowStatusHeader = new FlowLayoutPanel
+        {
+            Dock          = DockStyle.Top,
+            AutoSize      = true,
+            AutoSizeMode  = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents  = false,
+            Margin        = new Padding(0, 0, 0, 4)
+        };
+
         lblStatusDot = new Label
         {
             Text      = "●",
-            Font      = new Font("Segoe UI", 11F, FontStyle.Bold),
+            Font      = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(239, 68, 68),
-            Location  = new Point(12, 14),
-            Size      = new Size(22, 22),
-            AutoSize  = false
+            AutoSize  = true,
+            Margin    = new Padding(0, 1, 6, 0)
         };
+
         lblStatusTitle = new Label
         {
             Text      = "ESCRITORIO DESCONECTADO",
-            Font      = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
             ForeColor = Color.FromArgb(239, 68, 68),
-            Location  = new Point(36, 10),
-            Size      = new Size(378, 20)
+            AutoSize  = true,
+            Margin    = new Padding(0, 1, 0, 0)
         };
+
+        flowStatusHeader.Controls.Add(lblStatusDot);
+        flowStatusHeader.Controls.Add(lblStatusTitle);
+        tableStatus.Controls.Add(flowStatusHeader, 0, 0);
+
         lblStatusState = new Label
         {
             Text      = "Ingresa el host y puerto del túnel para conectarte.",
-            Font      = new Font("Segoe UI", 8F),
+            Font      = new Font("Segoe UI", 8.3F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location  = new Point(36, 32),
-            Size      = new Size(378, 20)
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 0)
         };
-        pnlStatusBox.Controls.AddRange(new Control[] { lblStatusDot, lblStatusTitle, lblStatusState });
-        panelCardConexion.Controls.Add(pnlStatusBox);
+        tableStatus.Controls.Add(lblStatusState, 0, 1);
 
-        // ── Host ────────────────────────────────────────────────────────
+        pnlStatusBox = tableStatus;
+        cardLayout.Controls.Add(pnlStatusBox);
+
+        // Fila 3: Host Label
         lblCardConexionHost = new Label
         {
-            Text = "Host Público / Túnel Remoto:",
-            Font = new Font("Segoe UI", 8.2F), ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 88), Size = new Size(428, 18)
+            Text      = "Host Público / Túnel Remoto:",
+            Font      = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 4)
         };
-        panelCardConexion.Controls.Add(lblCardConexionHost);
+        cardLayout.Controls.Add(lblCardConexionHost);
 
+        // Fila 4: Host TextBox
         txtHost = new TextBox
         {
-            Location        = new Point(16, 108),
-            Size            = new Size(428, 27),
+            Dock            = DockStyle.Top,
+            Height          = 30,
             BackColor       = Color.FromArgb(15, 23, 42),
             ForeColor       = Color.FromArgb(56, 189, 248),
             BorderStyle     = BorderStyle.FixedSingle,
             Font            = new Font("Segoe UI", 9.5F),
-            PlaceholderText = "ej: txsaw-190-xxx.run.pinggy-free.link"
+            PlaceholderText = "ej: txsaw-190-xxx.run.pinggy-free.link",
+            Margin          = new Padding(0, 0, 0, 12)
         };
-        panelCardConexion.Controls.Add(txtHost);
+        cardLayout.Controls.Add(txtHost);
 
-        // ── Puerto ──────────────────────────────────────────────────────
-        panelCardConexion.Controls.Add(new Label
+        // Fila 5: Puerto del Túnel Label
+        var lblPort = new Label
         {
-            Text = "Puerto del Túnel:", Font = new Font("Segoe UI", 8.2F),
-            ForeColor = Color.FromArgb(148, 163, 184), Location = new Point(16, 142), Size = new Size(200, 18)
-        });
+            Text      = "Puerto del Túnel:",
+            Font      = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 4)
+        };
+        cardLayout.Controls.Add(lblPort);
+
+        // Fila 6: Puerto NumericUpDown
         numPort = new NumericUpDown
         {
-            Location    = new Point(16, 162),
-            Size        = new Size(175, 27),
             Minimum     = 1,
             Maximum     = 65535,
             Value       = 5900,
             BackColor   = Color.FromArgb(15, 23, 42),
             ForeColor   = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
-            Font        = new Font("Segoe UI", 9.5F)
+            Font        = new Font("Segoe UI", 9.5F),
+            Width       = 175,
+            Height      = 30,
+            Margin      = new Padding(0, 0, 0, 14)
         };
-        panelCardConexion.Controls.Add(numPort);
+        cardLayout.Controls.Add(numPort);
 
-        // ── Hint ────────────────────────────────────────────────────────
+        // Fila 7: Hint Box informativa
         lblCardConexionHint = new Label
         {
-            Text = "💡 Obtén el host y puerto del log en Modo Servidor → Escritorio Remoto + Acceso Remoto.\n" +
-                   "   O usa el botón '📋 Copiar Configuración Completa' y pégalo aquí con el botón de abajo.",
-            Font     = new Font("Segoe UI", 7.8F),
+            Text      = "💡 Obtén el host y puerto del log en Modo Servidor → Escritorio Remoto + Acceso Remoto.\n" +
+                        "   O usa '📋 Copiar Configuración Completa' y pulsa el botón de abajo para autocompletar.",
+            Font      = new Font("Segoe UI", 8F),
             ForeColor = Color.FromArgb(250, 204, 21),
-            Location = new Point(16, 196),
-            Size     = new Size(428, 44),
-            AutoSize = false
+            BackColor = Color.FromArgb(30, 41, 59),
+            Padding   = new Padding(10, 8, 10, 8),
+            AutoSize  = true,
+            Dock      = DockStyle.Top,
+            Margin    = new Padding(0, 0, 0, 14)
         };
-        panelCardConexion.Controls.Add(lblCardConexionHint);
+        cardLayout.Controls.Add(lblCardConexionHint);
 
-        // ── Pegar portapapeles ──────────────────────────────────────────
+        // Fila 8: Botón Pegar desde portapapeles
         btnPegar = new Button
         {
-            Text      = "📋  Pegar desde Portapapeles",
-            Location  = new Point(16, 248),
-            Size      = new Size(220, 32),
+            Text      = "📋  Pegar Datos desde Portapapeles",
+            Dock      = DockStyle.Top,
+            Height    = 36,
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.FromArgb(226, 232, 240),
             FlatStyle = FlatStyle.Flat,
-            Font      = new Font("Segoe UI", 8.5F),
-            Cursor    = Cursors.Hand
+            Font      = new Font("Segoe UI", 8.8F),
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0, 0, 0, 10)
         };
-        btnPegar.FlatAppearance.BorderSize = 0;
+        btnPegar.FlatAppearance.BorderSize = 1;
+        btnPegar.FlatAppearance.BorderColor = Color.FromArgb(51, 65, 85);
         btnPegar.Click += BtnPegar_Click;
-        panelCardConexion.Controls.Add(btnPegar);
+        cardLayout.Controls.Add(btnPegar);
 
-        // ── Conectar ────────────────────────────────────────────────────
+        // Fila 9: Botón Conectar principal
         btnConectar = new Button
         {
             Text      = "🖥️  Conectar Escritorio Remoto",
-            Location  = new Point(16, 290),
-            Size      = new Size(428, 42),
+            Dock      = DockStyle.Top,
+            Height    = 44,
             BackColor = Color.FromArgb(234, 88, 12),
             ForeColor = Color.White,
             Font      = new Font("Segoe UI", 10F, FontStyle.Bold),
             FlatStyle = FlatStyle.Flat,
-            Cursor    = Cursors.Hand
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0, 0, 0, 4)
         };
         btnConectar.FlatAppearance.BorderSize = 0;
         btnConectar.Click += BtnConectar_Click;
-        panelCardConexion.Controls.Add(btnConectar);
+        cardLayout.Controls.Add(btnConectar);
 
-        panelConexion.Controls.Add(panelCardConexion);
+        gridCenter.Controls.Add(panelCardConexion, 1, 1);
+        panelConexion.Controls.Add(gridCenter);
         panelBody.Controls.Add(panelConexion);
     }
 
@@ -529,8 +634,7 @@ public class EscritorioRemotoControl : UserControl
             _isConnected     = false;
             btnConectar.Enabled = true;
             Debug.WriteLine($"[EscritorioRemoto] ❌ Error conectando a {host}:{port}: {ex.Message}");
-            SetStatus("❌ ERROR DE CONEXIÓN", Color.FromArgb(239, 68, 68),
-                      ex.Message.Length > 80 ? ex.Message[..80] + "…" : ex.Message);
+            SetStatus("❌ ERROR DE CONEXIÓN", Color.FromArgb(239, 68, 68), ex.Message);
         }
     }
 
@@ -712,8 +816,7 @@ public class EscritorioRemotoControl : UserControl
             old?.Dispose();
             _fullscreenForm?.Close();
             ShowConnectionView();
-            SetStatus("ESCRITORIO DESCONECTADO", Color.FromArgb(239, 68, 68),
-                      reason.Length > 80 ? reason[..80] : reason);
+            SetStatus("ESCRITORIO DESCONECTADO", Color.FromArgb(239, 68, 68), reason);
             if (btnConectar != null) btnConectar.Enabled = true;
         });
     }
@@ -899,35 +1002,81 @@ public class EscritorioRemotoControl : UserControl
         CenterConnectionCard();
     }
 
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (this.Visible)
+        {
+            UpdateCardSizing();
+        }
+    }
+
     private void CenterConnectionCard()
     {
-        if (panelConexion == null || panelCardConexion == null) return;
-        int targetWidth = Math.Clamp(panelConexion.ClientSize.Width - 40, 380, 560);
+        UpdateCardSizing();
+    }
+
+    private void UpdateCardSizing()
+    {
+        if (panelConexion == null || panelCardConexion == null || gridCenter == null) return;
+
+        int containerW = panelConexion.ClientSize.Width;
+        int containerH = panelConexion.ClientSize.Height;
+        if (containerW <= 0 || containerH <= 0) return;
+
+        // Proporcional: ~60% del contenedor en pantallas medianas/grandes, acotado entre 380px y 720px
+        int proportionalW = (int)(containerW * 0.60);
+        int targetWidth = Math.Clamp(proportionalW, 380, 720);
+
+        // Si el contenedor disponible es menor a 380px, ajustar para no desbordar
+        int maxAvailableW = Math.Max(280, containerW - 32);
+        if (targetWidth > maxAvailableW)
+            targetWidth = maxAvailableW;
+
+        panelCardConexion.MinimumSize = new Size(targetWidth, 0);
+        panelCardConexion.MaximumSize = new Size(targetWidth, 0);
         panelCardConexion.Width = targetWidth;
-        int x = Math.Max(15, (panelConexion.ClientSize.Width - panelCardConexion.Width) / 2);
-        int y = Math.Max(15, (panelConexion.ClientSize.Height - panelCardConexion.Height) / 2);
-        panelCardConexion.Location = new Point(x, y);
+
         AdjustConnectionCardControls();
+
+        // Calcular altura real requerida por el contenido de la tarjeta
+        int cardHeight = panelCardConexion.GetPreferredSize(new Size(targetWidth, 0)).Height;
+        if (cardHeight <= 0) cardHeight = panelCardConexion.Height;
+
+        int minH = cardHeight + 32;
+        gridCenter.MinimumSize = new Size(targetWidth + 24, minH);
+
+        // Si el contenedor no alcanza para toda la tarjeta + margen,
+        // fijar la fila superior para alinear arriba (no cortarse) y permitir scroll hacia abajo
+        if (containerH < minH)
+        {
+            gridCenter.RowStyles[0] = new RowStyle(SizeType.Absolute, 12f);
+            gridCenter.RowStyles[2] = new RowStyle(SizeType.Absolute, 12f);
+        }
+        else
+        {
+            gridCenter.RowStyles[0] = new RowStyle(SizeType.Percent, 50f);
+            gridCenter.RowStyles[2] = new RowStyle(SizeType.Percent, 50f);
+            panelConexion.AutoScrollPosition = Point.Empty;
+        }
     }
 
     private void AdjustConnectionCardControls()
     {
         if (panelCardConexion == null) return;
-        int innerW = panelCardConexion.ClientSize.Width - 32;
+        int innerW = panelCardConexion.ClientSize.Width - panelCardConexion.Padding.Horizontal;
         if (innerW <= 100) return;
 
-        if (pnlStatusBox != null)
+        // Configurar ancho máximo de textos multilínea para que calculen su altura automáticamente sin truncar
+        if (lblStatusState != null)
         {
-            pnlStatusBox.Width = innerW;
-            if (lblStatusTitle != null) lblStatusTitle.Width = Math.Max(120, innerW - 48);
-            if (lblStatusState != null) lblStatusState.Width = Math.Max(120, innerW - 48);
+            lblStatusState.MaximumSize = new Size(innerW - 24, 0);
         }
 
-        if (lblCardConexionHost != null) lblCardConexionHost.Width = innerW;
-        if (txtHost != null) txtHost.Width = innerW;
-
-        if (lblCardConexionHint != null) lblCardConexionHint.Width = innerW;
-        if (btnConectar != null) btnConectar.Width = innerW;
+        if (lblCardConexionHint != null)
+        {
+            lblCardConexionHint.MaximumSize = new Size(innerW, 0);
+        }
     }
 
     private void ShowDesktopView()
@@ -948,7 +1097,10 @@ public class EscritorioRemotoControl : UserControl
         lblStatusTitle.ForeColor = color;
         lblStatusDot.ForeColor   = color;
         if (!string.IsNullOrEmpty(sub))
+        {
             lblStatusState.Text  = sub;
+            CenterConnectionCard();
+        }
     }
 
     private void SafeInvoke(Action action)

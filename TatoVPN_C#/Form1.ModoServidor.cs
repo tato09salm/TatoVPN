@@ -96,7 +96,7 @@ public partial class Form1
         panelModoServidor.Dock = DockStyle.Fill;
         panelModoServidor.Location = new Point(0, 0);
         panelModoServidor.Name = "panelModoServidor";
-        panelModoServidor.Padding = new Padding(20, 10, 20, 15);
+        panelModoServidor.Padding = new Padding(24, 16, 24, 24);
         panelModoServidor.Size = new Size(855, 700);
         panelModoServidor.TabIndex = 5;
         panelModoServidor.Visible = false;
@@ -105,21 +105,19 @@ public partial class Form1
         lblModoServidorTitle = new Label
         {
             Text = "🖥️  Modo Servidor Local (Tato Host)",
-            Font = new Font("Segoe UI", 14F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 14.5F, FontStyle.Bold),
             ForeColor = Color.White,
-            Location = new Point(20, 15),
-            Size = new Size(500, 32),
-            AutoSize = false
+            Location = new Point(24, 16),
+            AutoSize = true
         };
 
         lblModoServidorSub = new Label
         {
-            Text = "Servidor para transferir archivos vía Conexión Remota (SFTP) o compartir internet con HTTP Injector.",
-            Font = new Font("Segoe UI", 8.8F),
+            Text = "Servidor para transferir archivos vía Conexión Remota (SFTP), compartir internet o escritorio remoto.",
+            Font = new Font("Segoe UI", 9F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(20, 47),
-            Size = new Size(815, 22),
-            AutoSize = false
+            Location = new Point(24, 48),
+            AutoSize = true
         };
 
         panelModoServidor.Controls.Add(lblModoServidorTitle);
@@ -134,24 +132,24 @@ public partial class Form1
         RefreshLocalIp();
         UpdatePurposeUiState();
         UpdateConnectionStringPreview();
-        AppendServerLog("ℹ️ Módulo Modo Servidor listo con soporte para Conexión Remota (SFTP) y HTTP Injector.");
+        AppendServerLog("ℹ️ Módulo Modo Servidor listo con soporte para Conexión Remota (SFTP), HTTP Injector y Escritorio Remoto.");
     }
 
     private void BuildServerControlCard()
     {
         panelServerControlCard = new Panel
         {
-            Location = new Point(20, 75),
-            Size = new Size(400, 648), // +26px por la tercera opción de propósito
+            Location = new Point(24, 80),
+            Size = new Size(420, 650),
             BackColor = Color.FromArgb(22, 32, 48),
             BorderStyle = BorderStyle.None
         };
 
-        // Estado del Servidor
+        // Estado del Servidor (Banner)
         pnlStatusBox = new Panel
         {
-            Location = new Point(16, 14),
-            Size = new Size(368, 68),
+            Location = new Point(18, 16),
+            Size = new Size(384, 68),
             BackColor = Color.FromArgb(15, 23, 42)
         };
 
@@ -160,17 +158,17 @@ public partial class Form1
             Text = "● SERVIDOR DETENIDO",
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(239, 68, 68),
-            Location = new Point(12, 10),
-            Size = new Size(344, 24)
+            Location = new Point(14, 10),
+            AutoSize = true
         };
 
         lblServerStatusDesc = new Label
         {
             Text = "El servidor está apagado. Presiona encender para activarlo.",
-            Font = new Font("Segoe UI", 8.2F),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(12, 36),
-            Size = new Size(344, 26)
+            Location = new Point(14, 34),
+            AutoSize = true
         };
 
         pnlStatusBox.Controls.Add(lblServerStatusBadge);
@@ -181,8 +179,8 @@ public partial class Form1
         btnServerToggle = new Button
         {
             Text = "▶  Encender Servidor",
-            Location = new Point(16, 88),
-            Size = new Size(368, 40),
+            Location = new Point(18, 96),
+            Size = new Size(384, 42),
             BackColor = Color.FromArgb(234, 88, 12),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -193,31 +191,29 @@ public partial class Form1
         btnServerToggle.Click += BtnServerToggle_Click;
         panelServerControlCard.Controls.Add(btnServerToggle);
 
-        // ── Grupo 1: Selector de Modo / Propósito (Panel propio para que sea grupo independiente) ──
+        // ── Grupo 1: Selector de Modo / Propósito ──
         lblPurposeTitle = new Label
         {
             Text = "🎯 Modo de Operación / Propósito:",
-            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 134),
-            Size = new Size(368, 20)
+            Location = new Point(18, 150),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblPurposeTitle);
 
-        // Panel contenedor del grupo de propósito — imprescindible para que WinForms
-        // trate estos RadioButtons como grupo separado al de 'Modo de Red' más abajo.
         grpPurpose = new Panel
         {
-            Location  = new Point(16, 156),
-            Size      = new Size(368, 78),   // 3 opciones × 26px
+            Location  = new Point(18, 174),
+            Size      = new Size(384, 92),
             BackColor = Color.Transparent
         };
 
         rbServerPurposeFiles = new RadioButton
         {
             Text      = "📁 Conexión Remota (Archivos / SFTP)",
-            Location  = new Point(0, 0),
-            Size      = new Size(368, 24),
+            Location  = new Point(4, 2),
+            Size      = new Size(376, 28),
             ForeColor = Color.White,
             Font      = new Font("Segoe UI", 9F, FontStyle.Bold),
             Checked   = true
@@ -228,8 +224,8 @@ public partial class Form1
         rbServerPurposeHttp = new RadioButton
         {
             Text      = "📱 Compartir Internet (HTTP Injector / Proxy)",
-            Location  = new Point(0, 26),
-            Size      = new Size(368, 24),
+            Location  = new Point(4, 32),
+            Size      = new Size(376, 28),
             ForeColor = Color.FromArgb(203, 213, 225),
             Font      = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
@@ -239,8 +235,8 @@ public partial class Form1
         rbServerPurposeDesktop = new RadioButton
         {
             Text      = "🖥️ Escritorio Remoto (Ver y controlar esta laptop)",
-            Location  = new Point(0, 52),
-            Size      = new Size(368, 24),
+            Location  = new Point(4, 62),
+            Size      = new Size(376, 28),
             ForeColor = Color.FromArgb(203, 213, 225),
             Font      = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
@@ -252,17 +248,17 @@ public partial class Form1
         // Panel de Estado y Acción de OpenSSH de Windows
         panelOpenSshCard = new Panel
         {
-            Location = new Point(16, 236), // +26px por la tercera opción en grpPurpose
-            Size = new Size(368, 58),
+            Location = new Point(18, 276),
+            Size = new Size(384, 64),
             BackColor = Color.FromArgb(15, 23, 42)
         };
 
         lblOpenSshStatus = new Label
         {
             Text = "● Verificando Servidor OpenSSH...",
-            Location = new Point(10, 8),
-            Size = new Size(240, 42),
-            Font = new Font("Segoe UI", 8F),
+            Location = new Point(12, 10),
+            Size = new Size(250, 44),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184)
         };
         panelOpenSshCard.Controls.Add(lblOpenSshStatus);
@@ -270,12 +266,12 @@ public partial class Form1
         btnOpenSshAction = new Button
         {
             Text = "🛡️ Instalar",
-            Location = new Point(255, 12),
-            Size = new Size(103, 34),
+            Location = new Point(266, 14),
+            Size = new Size(108, 36),
             BackColor = Color.FromArgb(220, 38, 38),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
             Cursor = Cursors.Hand
         };
         btnOpenSshAction.FlatAppearance.BorderSize = 0;
@@ -288,38 +284,38 @@ public partial class Form1
         lblCredTitle = new Label
         {
             Text = "🔑 Credenciales de Windows (OpenSSH):",
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 300),
-            Size = new Size(368, 20)
+            Location = new Point(18, 350),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblCredTitle);
 
         lblUser = new Label
         {
             Text = "Usuario Windows:",
-            Font = new Font("Segoe UI", 8.2F),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 322),
-            Size = new Size(175, 18)
+            Location = new Point(18, 374),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblUser);
 
         lblPass = new Label
         {
             Text = "Contraseña Windows:",
-            Font = new Font("Segoe UI", 8.2F),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(200, 322),
-            Size = new Size(184, 18)
+            Location = new Point(210, 374),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblPass);
 
         txtServerUser = new TextBox
         {
             Text = Environment.UserName,
-            Location = new Point(16, 342),
-            Size = new Size(175, 27),
+            Location = new Point(18, 396),
+            Size = new Size(180, 28),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
@@ -331,8 +327,8 @@ public partial class Form1
         txtServerPass = new TextBox
         {
             Text = "",
-            Location = new Point(200, 342),
-            Size = new Size(135, 27),
+            Location = new Point(210, 396),
+            Size = new Size(140, 28),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
@@ -345,8 +341,8 @@ public partial class Form1
         btnTogglePassVisibility = new Button
         {
             Text = "👁️",
-            Location = new Point(339, 341),
-            Size = new Size(45, 29),
+            Location = new Point(356, 395),
+            Size = new Size(38, 30),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
@@ -360,13 +356,15 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(btnTogglePassVisibility);
 
+        // Texto de ayuda (mantenido en código para compatibilidad, pero oculto del diseño visual)
         lblPassHelp = new Label
         {
             Text = "💡 Usa el usuario y contraseña de tu cuenta de Windows en esta laptop.",
-            Font = new Font("Segoe UI", 7.8F),
+            Font = new Font("Segoe UI", 8F),
             ForeColor = Color.FromArgb(250, 204, 21),
-            Location = new Point(16, 372),
-            Size = new Size(368, 28)
+            Location = new Point(18, 430),
+            AutoSize = true,
+            Visible = false
         };
         panelServerControlCard.Controls.Add(lblPassHelp);
 
@@ -374,27 +372,27 @@ public partial class Form1
         lblServerSshPort = new Label
         {
             Text = "Puerto OpenSSH (SFTP):",
-            Font = new Font("Segoe UI", 8.2F),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 402),
-            Size = new Size(175, 18)
+            Location = new Point(18, 460),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblServerSshPort);
 
         lblServerProxyPort = new Label
         {
             Text = "Puerto Proxy (HTTP/SOCKS):",
-            Font = new Font("Segoe UI", 8.2F),
+            Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(200, 402),
-            Size = new Size(184, 18)
+            Location = new Point(210, 460),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblServerProxyPort);
 
         numServerSshPort = new NumericUpDown
         {
-            Location = new Point(16, 422),
-            Size = new Size(175, 27),
+            Location = new Point(18, 482),
+            Size = new Size(180, 28),
             Minimum = 1,
             Maximum = 65535,
             Value = 22,
@@ -409,8 +407,8 @@ public partial class Form1
 
         numServerProxyPort = new NumericUpDown
         {
-            Location = new Point(200, 422),
-            Size = new Size(184, 27),
+            Location = new Point(210, 482),
+            Size = new Size(184, 28),
             Minimum = 1,
             Maximum = 65535,
             Value = 1080,
@@ -421,33 +419,31 @@ public partial class Form1
         };
         panelServerControlCard.Controls.Add(numServerProxyPort);
 
-        // ── Grupo 2: Modo de Red (Panel propio — grupo independiente de Propósito) ──
+        // ── Grupo 2: Modo de Red ──
         lblModeTitle = new Label
         {
             Text = "🌐 Modo de Red / Alcance",
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 484),
-            Size = new Size(368, 20)
+            Location = new Point(18, 524),
+            AutoSize = true
         };
         panelServerControlCard.Controls.Add(lblModeTitle);
 
-        // Panel contenedor del grupo de red — imprescindible para que WinForms
-        // trate estos RadioButtons como grupo separado al de 'Propósito' de arriba.
         grpNetwork = new Panel
         {
-            Location = new Point(16, 506),
-            Size = new Size(368, 110),
+            Location = new Point(18, 548),
+            Size = new Size(384, 110),
             BackColor = Color.Transparent
         };
 
         rbServerLan = new RadioButton
         {
             Text = "📶 Red Local (Wi-Fi / LAN / Hotspot)",
-            Location = new Point(0, 0),
-            Size = new Size(368, 24),
+            Location = new Point(4, 2),
+            Size = new Size(376, 26),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             Checked = true
         };
         rbServerLan.CheckedChanged += (s, e) =>
@@ -465,20 +461,21 @@ public partial class Form1
         lblLanDesc = new Label
         {
             Text = "Para laptops o celulares conectados a la misma red Wi-Fi o zona compartida.",
-            Font = new Font("Segoe UI", 7.8F),
-            ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(20, 24),
-            Size = new Size(348, 26)
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(24, 28),
+            Size = new Size(354, 24),
+            AutoSize = true
         };
         grpNetwork.Controls.Add(lblLanDesc);
 
         rbServerRemote = new RadioButton
         {
             Text = "🌍 Acceso Remoto (Túnel Inverso / Internet)",
-            Location = new Point(0, 54),
-            Size = new Size(368, 24),
+            Location = new Point(4, 56),
+            Size = new Size(376, 26),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold)
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
         rbServerRemote.CheckedChanged += (s, e) =>
         {
@@ -507,10 +504,11 @@ public partial class Form1
         lblRemoteDesc = new Label
         {
             Text = "Permite conectar desde cualquier red o datos móviles mediante túnel inverso sin abrir puertos.",
-            Font = new Font("Segoe UI", 7.8F),
-            ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(20, 78),
-            Size = new Size(348, 30)
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(24, 82),
+            Size = new Size(354, 26),
+            AutoSize = true
         };
         grpNetwork.Controls.Add(lblRemoteDesc);
 
@@ -523,8 +521,8 @@ public partial class Form1
     {
         panelServerInfoCard = new Panel
         {
-            Location = new Point(435, 75),
-            Size = new Size(400, 595),
+            Location = new Point(460, 80),
+            Size = new Size(420, 650),
             BackColor = Color.FromArgb(22, 32, 48),
             BorderStyle = BorderStyle.None
         };
@@ -534,8 +532,8 @@ public partial class Form1
             Text = "📡 Datos para tus Dispositivos",
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 16),
-            Size = new Size(368, 24)
+            Location = new Point(18, 16),
+            AutoSize = true
         };
         panelServerInfoCard.Controls.Add(lblInfoTitle);
 
@@ -545,8 +543,8 @@ public partial class Form1
             Text = "IP Local de tu PC (Wi-Fi / Hotspot):",
             Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 48),
-            Size = new Size(250, 20)
+            Location = new Point(18, 48),
+            AutoSize = true
         };
         panelServerInfoCard.Controls.Add(lblIpLocal);
 
@@ -554,8 +552,8 @@ public partial class Form1
         {
             Text = "127.0.0.1",
             ReadOnly = true,
-            Location = new Point(16, 70),
-            Size = new Size(230, 27),
+            Location = new Point(18, 70),
+            Size = new Size(250, 30),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.FromArgb(56, 189, 248),
             BorderStyle = BorderStyle.FixedSingle,
@@ -566,11 +564,12 @@ public partial class Form1
         btnCopyLocalIp = new Button
         {
             Text = "Copiar",
-            Location = new Point(252, 69),
-            Size = new Size(70, 29),
+            Location = new Point(276, 69),
+            Size = new Size(76, 30),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
             Cursor = Cursors.Hand
         };
         btnCopyLocalIp.FlatAppearance.BorderSize = 0;
@@ -587,8 +586,8 @@ public partial class Form1
         btnRefreshIp = new Button
         {
             Text = "🔄",
-            Location = new Point(328, 69),
-            Size = new Size(56, 29),
+            Location = new Point(358, 69),
+            Size = new Size(44, 30),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.FromArgb(56, 189, 248),
             FlatStyle = FlatStyle.Flat,
@@ -609,8 +608,8 @@ public partial class Form1
             Text = "Host Público / Túnel Remoto:",
             Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 108),
-            Size = new Size(250, 20)
+            Location = new Point(18, 112),
+            AutoSize = true
         };
         panelServerInfoCard.Controls.Add(lblPublicHost);
 
@@ -618,23 +617,24 @@ public partial class Form1
         {
             Text = "Disponible en modo local o túnel",
             ReadOnly = true,
-            Location = new Point(16, 130),
-            Size = new Size(280, 27),
+            Location = new Point(18, 134),
+            Size = new Size(302, 30),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.FromArgb(148, 163, 184),
             BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Segoe UI", 8.5F)
+            Font = new Font("Segoe UI", 9F)
         };
         panelServerInfoCard.Controls.Add(txtServerPublicHost);
 
         btnCopyPublicHost = new Button
         {
             Text = "Copiar",
-            Location = new Point(302, 129),
-            Size = new Size(82, 29),
+            Location = new Point(326, 133),
+            Size = new Size(76, 30),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
             Cursor = Cursors.Hand
         };
         btnCopyPublicHost.FlatAppearance.BorderSize = 0;
@@ -654,16 +654,16 @@ public partial class Form1
             Text = "Credencial Formato TatoVPN / SSH:",
             Font = new Font("Segoe UI", 8.5F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 168),
-            Size = new Size(250, 20)
+            Location = new Point(18, 176),
+            AutoSize = true
         };
         panelServerInfoCard.Controls.Add(lblConnString);
 
         txtServerConnectionString = new TextBox
         {
             ReadOnly = true,
-            Location = new Point(16, 190),
-            Size = new Size(368, 27),
+            Location = new Point(18, 198),
+            Size = new Size(384, 30),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.FromArgb(250, 204, 21),
             BorderStyle = BorderStyle.FixedSingle,
@@ -674,8 +674,8 @@ public partial class Form1
         btnCopyConnectionString = new Button
         {
             Text = "📋  Copiar Configuración Completa",
-            Location = new Point(16, 224),
-            Size = new Size(368, 34),
+            Location = new Point(18, 236),
+            Size = new Size(384, 38),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.FromArgb(226, 232, 240),
             FlatStyle = FlatStyle.Flat,
@@ -700,22 +700,22 @@ public partial class Form1
         lblLogs = new Label
         {
             Text = "📋 Registro en Vivo del Servidor:",
-            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 270),
-            Size = new Size(250, 20)
+            Location = new Point(18, 288),
+            AutoSize = true
         };
         panelServerInfoCard.Controls.Add(lblLogs);
 
         btnClearServerLogs = new Button
         {
             Text = "Limpiar",
-            Location = new Point(310, 266),
-            Size = new Size(74, 25),
+            Location = new Point(326, 284),
+            Size = new Size(76, 28),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.FromArgb(148, 163, 184),
             FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 7.8F),
+            Font = new Font("Segoe UI", 8F),
             Cursor = Cursors.Hand
         };
         btnClearServerLogs.FlatAppearance.BorderSize = 0;
@@ -724,12 +724,12 @@ public partial class Form1
 
         rtbServerLogs = new RichTextBox
         {
-            Location = new Point(16, 296),
-            Size = new Size(368, 282),
+            Location = new Point(18, 318),
+            Size = new Size(384, 310),
             BackColor = Color.FromArgb(15, 23, 42),
-            ForeColor = Color.FromArgb(148, 163, 184),
+            ForeColor = Color.FromArgb(203, 213, 225),
             BorderStyle = BorderStyle.None,
-            Font = new Font("Consolas", 8.5F),
+            Font = new Font("Consolas", 8.8F),
             ReadOnly = true
         };
         panelServerInfoCard.Controls.Add(rtbServerLogs);
@@ -743,103 +743,212 @@ public partial class Form1
             return;
 
         int availWidth = panelModoServidor.ClientSize.Width;
+        int availHeight = panelModoServidor.ClientSize.Height;
         if (availWidth <= 0) return;
 
-        int margin = 20;
-        int gap = 16;
-        int startY = 75;
+        int marginX = 24;
+        int gap = 20;
 
-        lblModoServidorTitle.Width = Math.Max(300, availWidth - margin * 2);
-        lblModoServidorSub.Width = Math.Max(300, availWidth - margin * 2);
+        lblModoServidorTitle.Location = new Point(marginX, 16);
+        lblModoServidorSub.Location = new Point(marginX, lblModoServidorTitle.Bottom + 4);
+        int startY = lblModoServidorSub.Bottom + 16;
 
-        // Si el ancho disponible es >= 840px, mostramos 2 columnas lado a lado
-        if (availWidth >= 840)
+        // Si el ancho disponible es >= 880px, mostramos 2 columnas lado a lado
+        if (availWidth >= 880)
         {
-            int cardWidth = (availWidth - margin * 2 - gap) / 2;
-            cardWidth = Math.Max(380, cardWidth);
+            int maxTotalWidth = 1180;
+            int totalCardsWidth = Math.Min(maxTotalWidth, availWidth - (marginX * 2));
+            int startX = marginX + Math.Max(0, (availWidth - (marginX * 2) - totalCardsWidth) / 2);
+            int cardWidth = (totalCardsWidth - gap) / 2;
 
-            panelServerControlCard.Location = new Point(margin, startY);
+            panelServerControlCard.Location = new Point(startX, startY);
             panelServerControlCard.Width = cardWidth;
-            panelServerControlCard.Height = 648;
 
-            panelServerInfoCard.Location = new Point(margin + cardWidth + gap, startY);
+            int requiredControlHeight = AdjustServerControlCardControls();
+            int targetHeight = Math.Max(requiredControlHeight, Math.Max(660, availHeight - startY - 24));
+            panelServerControlCard.Height = targetHeight;
+
+            panelServerInfoCard.Location = new Point(startX + cardWidth + gap, startY);
             panelServerInfoCard.Width = cardWidth;
-            panelServerInfoCard.Height = 648;
+            panelServerInfoCard.Height = targetHeight;
+
+            AdjustServerInfoCardControls();
         }
         else
         {
-            // Ancho menor a 840px: 1 columna apilada verticalmente
-            int cardWidth = Math.Max(320, availWidth - margin * 2);
+            // Ancho menor a 880px: 1 columna apilada verticalmente
+            int cardWidth = Math.Max(320, availWidth - (marginX * 2));
+            int startX = marginX;
 
-            panelServerControlCard.Location = new Point(margin, startY);
+            panelServerControlCard.Location = new Point(startX, startY);
             panelServerControlCard.Width = cardWidth;
-            panelServerControlCard.Height = 648;
+            int requiredControlHeight = AdjustServerControlCardControls();
+            panelServerControlCard.Height = requiredControlHeight;
 
-            panelServerInfoCard.Location = new Point(margin, panelServerControlCard.Bottom + gap);
+            panelServerInfoCard.Location = new Point(startX, panelServerControlCard.Bottom + gap);
             panelServerInfoCard.Width = cardWidth;
-            panelServerInfoCard.Height = 600;
-        }
+            panelServerInfoCard.Height = Math.Max(620, Math.Min(700, availHeight - 100));
 
-        AdjustServerControlCardControls();
-        AdjustServerInfoCardControls();
+            AdjustServerInfoCardControls();
+        }
     }
 
-    private void AdjustServerControlCardControls()
+    private int AdjustServerControlCardControls()
     {
-        if (panelServerControlCard == null) return;
+        if (panelServerControlCard == null) return 650;
         int cardWidth = panelServerControlCard.ClientSize.Width;
-        if (cardWidth <= 100) return;
+        if (cardWidth <= 100) return 650;
 
-        int innerWidth = cardWidth - 32;
+        int padX = 18;
+        int innerWidth = cardWidth - (padX * 2);
+        int currentY = 16;
 
+        // 1. Estado del Servidor (Banner)
+        pnlStatusBox.Location = new Point(padX, currentY);
         pnlStatusBox.Width = innerWidth;
-        lblServerStatusBadge.Width = Math.Max(150, innerWidth - 24);
-        lblServerStatusDesc.Width = Math.Max(150, innerWidth - 24);
+        lblServerStatusBadge.Location = new Point(14, 10);
+        lblServerStatusDesc.Location = new Point(14, lblServerStatusBadge.Bottom + 4);
+        lblServerStatusDesc.MaximumSize = new Size(innerWidth - 28, 0);
+        pnlStatusBox.Height = Math.Max(66, lblServerStatusDesc.Bottom + 10);
+        currentY += pnlStatusBox.Height + 12;
 
+        // 2. Botón Encender / Apagar
+        btnServerToggle.Location = new Point(padX, currentY);
         btnServerToggle.Width = innerWidth;
+        btnServerToggle.Height = 42;
+        currentY += btnServerToggle.Height + 16;
 
+        // 3. Propósito
+        lblPurposeTitle.Location = new Point(padX, currentY);
         lblPurposeTitle.Width = innerWidth;
+        currentY += lblPurposeTitle.Height + 6;
+
+        grpPurpose.Location = new Point(padX, currentY);
         grpPurpose.Width = innerWidth;
-        rbServerPurposeFiles.Width = innerWidth;
-        rbServerPurposeHttp.Width = innerWidth;
-        rbServerPurposeDesktop.Width = innerWidth;
 
-        panelOpenSshCard.Width = innerWidth;
-        btnOpenSshAction.Left = Math.Max(10, panelOpenSshCard.Width - btnOpenSshAction.Width - 10);
-        lblOpenSshStatus.Width = Math.Max(100, btnOpenSshAction.Left - 15);
+        int purposeY = 2;
+        RadioButton[] purposeRadios = { rbServerPurposeFiles, rbServerPurposeHttp, rbServerPurposeDesktop };
+        foreach (var rb in purposeRadios)
+        {
+            rb.Location = new Point(4, purposeY);
+            rb.Width = innerWidth - 8;
+            Size measured = TextRenderer.MeasureText(rb.Text, rb.Font, new Size(Math.Max(60, rb.Width - 28), int.MaxValue), TextFormatFlags.WordBreak);
+            rb.Height = Math.Max(30, measured.Height + 8);
+            purposeY += rb.Height + 4;
+        }
+        grpPurpose.Height = purposeY;
+        currentY += grpPurpose.Height + 14;
 
-        lblCredTitle.Width = innerWidth;
-        lblPassHelp.Width = innerWidth;
+        // 4. Panel OpenSSH (solo visible en modo archivos)
+        if (panelOpenSshCard.Visible)
+        {
+            panelOpenSshCard.Location = new Point(padX, currentY);
+            panelOpenSshCard.Width = innerWidth;
+            panelOpenSshCard.Height = 74;
 
-        // Credenciales: 50% usuario, 50% contraseña
-        int halfWidth = Math.Max(80, (innerWidth - 16) / 2);
-        lblUser.Width = halfWidth;
-        txtServerUser.Width = halfWidth;
+            btnOpenSshAction.Width = 110;
+            btnOpenSshAction.Height = 36;
+            btnOpenSshAction.Left = innerWidth - btnOpenSshAction.Width - 12;
+            btnOpenSshAction.Top = (panelOpenSshCard.Height - btnOpenSshAction.Height) / 2;
 
-        int passLeft = 16 + halfWidth + 16;
-        lblPass.Left = passLeft;
-        lblPass.Width = halfWidth;
+            lblOpenSshStatus.Location = new Point(12, 8);
+            lblOpenSshStatus.Width = Math.Max(80, btnOpenSshAction.Left - 20);
+            lblOpenSshStatus.Height = 58;
 
-        btnTogglePassVisibility.Left = cardWidth - 16 - btnTogglePassVisibility.Width;
-        txtServerPass.Left = passLeft;
-        txtServerPass.Width = Math.Max(60, btnTogglePassVisibility.Left - passLeft - 6);
+            currentY += panelOpenSshCard.Height + 14;
+        }
 
-        // Puertos: 50% SSH, 50% Proxy
-        lblServerSshPort.Width = halfWidth;
-        numServerSshPort.Width = halfWidth;
+        // 5. Credenciales y Puertos (visible en Archivos y HTTP)
+        if (lblCredTitle.Visible)
+        {
+            lblCredTitle.Location = new Point(padX, currentY);
+            lblCredTitle.Width = innerWidth;
+            currentY += lblCredTitle.Height + 6;
 
-        lblServerProxyPort.Left = passLeft;
-        lblServerProxyPort.Width = halfWidth;
-        numServerProxyPort.Left = passLeft;
-        numServerProxyPort.Width = Math.Max(60, cardWidth - 16 - passLeft);
+            int credGap = 12;
+            int colWidth = (innerWidth - credGap) / 2;
+            int rightColX = padX + colWidth + credGap;
 
-        // Modo de Red
+            // Labels Usuario / Contraseña
+            lblUser.Location = new Point(padX, currentY);
+            lblUser.Width = colWidth;
+            lblPass.Location = new Point(rightColX, currentY);
+            lblPass.Width = colWidth;
+            currentY += Math.Max(lblUser.Height, lblPass.Height) + 4;
+
+            // Inputs Usuario / Contraseña + Ojo
+            txtServerUser.Location = new Point(padX, currentY);
+            txtServerUser.Width = colWidth;
+            txtServerUser.Height = 28;
+
+            int eyeWidth = 38;
+            int passInputWidth = Math.Max(40, colWidth - eyeWidth - 6);
+            txtServerPass.Location = new Point(rightColX, currentY);
+            txtServerPass.Width = passInputWidth;
+            txtServerPass.Height = 28;
+
+            btnTogglePassVisibility.Location = new Point(rightColX + passInputWidth + 6, currentY - 1);
+            btnTogglePassVisibility.Size = new Size(eyeWidth, 30);
+            currentY += 28 + 12;
+
+            // Help label: permanece declarado pero visualmente oculto y colapsado (0 px)
+            lblPassHelp.Visible = false;
+            lblPassHelp.Height = 0;
+
+            // Puertos
+            if (lblServerSshPort.Visible)
+            {
+                lblServerSshPort.Location = new Point(padX, currentY);
+                lblServerSshPort.Width = colWidth;
+
+                lblServerProxyPort.Location = new Point(rightColX, currentY);
+                lblServerProxyPort.Width = colWidth;
+                currentY += Math.Max(lblServerSshPort.Height, lblServerProxyPort.Height) + 4;
+
+                numServerSshPort.Location = new Point(padX, currentY);
+                numServerSshPort.Width = colWidth;
+                numServerSshPort.Height = 28;
+
+                numServerProxyPort.Location = new Point(rightColX, currentY);
+                numServerProxyPort.Width = colWidth;
+                numServerProxyPort.Height = 28;
+                currentY += 28 + 14;
+            }
+        }
+
+        // 6. Modo de Red
+        lblModeTitle.Location = new Point(padX, currentY);
         lblModeTitle.Width = innerWidth;
+        currentY += lblModeTitle.Height + 8;
+
+        grpNetwork.Location = new Point(padX, currentY);
         grpNetwork.Width = innerWidth;
-        rbServerLan.Width = innerWidth;
-        lblLanDesc.Width = Math.Max(100, innerWidth - 20);
-        rbServerRemote.Width = innerWidth;
-        lblRemoteDesc.Width = Math.Max(100, innerWidth - 20);
+
+        // Opción 1: LAN
+        rbServerLan.Location = new Point(4, 4);
+        rbServerLan.Width = innerWidth - 8;
+        Size lanTitleSize = TextRenderer.MeasureText(rbServerLan.Text, rbServerLan.Font, new Size(Math.Max(60, rbServerLan.Width - 28), int.MaxValue), TextFormatFlags.WordBreak);
+        rbServerLan.Height = Math.Max(30, lanTitleSize.Height + 6);
+
+        lblLanDesc.Location = new Point(28, rbServerLan.Bottom + 2);
+        lblLanDesc.Width = innerWidth - 36;
+        lblLanDesc.MaximumSize = new Size(innerWidth - 36, 0);
+
+        // Opción 2: Acceso Remoto
+        int remoteY = lblLanDesc.Bottom + 12;
+        rbServerRemote.Location = new Point(4, remoteY);
+        rbServerRemote.Width = innerWidth - 8;
+        Size remoteTitleSize = TextRenderer.MeasureText(rbServerRemote.Text, rbServerRemote.Font, new Size(Math.Max(60, rbServerRemote.Width - 28), int.MaxValue), TextFormatFlags.WordBreak);
+        rbServerRemote.Height = Math.Max(30, remoteTitleSize.Height + 6);
+
+        lblRemoteDesc.Location = new Point(28, rbServerRemote.Bottom + 2);
+        lblRemoteDesc.Width = innerWidth - 36;
+        lblRemoteDesc.MaximumSize = new Size(innerWidth - 36, 0);
+
+        grpNetwork.Height = lblRemoteDesc.Bottom + 8;
+        currentY += grpNetwork.Height + 18;
+
+        return currentY;
     }
 
     private void AdjustServerInfoCardControls()
@@ -848,31 +957,60 @@ public partial class Form1
         int cardWidth = panelServerInfoCard.ClientSize.Width;
         if (cardWidth <= 100) return;
 
-        int innerWidth = cardWidth - 32;
+        int padX = 18;
+        int innerWidth = cardWidth - (padX * 2);
 
+        lblInfoTitle.Location = new Point(padX, 16);
         lblInfoTitle.Width = innerWidth;
 
         // IP Local
+        lblIpLocal.Location = new Point(padX, 48);
         lblIpLocal.Width = innerWidth;
-        btnRefreshIp.Left = cardWidth - 16 - btnRefreshIp.Width;
-        btnCopyLocalIp.Left = btnRefreshIp.Left - 6 - btnCopyLocalIp.Width;
-        txtServerLocalIp.Width = Math.Max(80, btnCopyLocalIp.Left - 16 - 6);
+
+        int btnRefreshWidth = 46;
+        int btnCopyWidth = 88;
+        int btnHeight = 32;
+
+        btnRefreshIp.Size = new Size(btnRefreshWidth, btnHeight);
+        btnRefreshIp.Location = new Point(cardWidth - padX - btnRefreshWidth, 70);
+
+        btnCopyLocalIp.Size = new Size(btnCopyWidth, btnHeight);
+        btnCopyLocalIp.Location = new Point(btnRefreshIp.Left - 8 - btnCopyWidth, 70);
+
+        txtServerLocalIp.Location = new Point(padX, 71);
+        txtServerLocalIp.Size = new Size(Math.Max(80, btnCopyLocalIp.Left - padX - 8), 30);
 
         // Host Público
+        lblPublicHost.Location = new Point(padX, 112);
         lblPublicHost.Width = innerWidth;
-        btnCopyPublicHost.Left = cardWidth - 16 - btnCopyPublicHost.Width;
-        txtServerPublicHost.Width = Math.Max(80, btnCopyPublicHost.Left - 16 - 6);
+
+        btnCopyPublicHost.Size = new Size(btnCopyWidth, btnHeight);
+        btnCopyPublicHost.Location = new Point(cardWidth - padX - btnCopyWidth, 134);
+
+        txtServerPublicHost.Location = new Point(padX, 134);
+        txtServerPublicHost.Size = new Size(Math.Max(80, btnCopyPublicHost.Left - padX - 8), 30);
 
         // Cadena de Conexión
+        lblConnString.Location = new Point(padX, 176);
         lblConnString.Width = innerWidth;
-        txtServerConnectionString.Width = innerWidth;
-        btnCopyConnectionString.Width = innerWidth;
+
+        txtServerConnectionString.Location = new Point(padX, 198);
+        txtServerConnectionString.Size = new Size(innerWidth, 30);
+
+        btnCopyConnectionString.Location = new Point(padX, 236);
+        btnCopyConnectionString.Size = new Size(innerWidth, 38);
 
         // Logs
-        btnClearServerLogs.Left = cardWidth - 16 - btnClearServerLogs.Width;
-        lblLogs.Width = Math.Max(100, btnClearServerLogs.Left - 16 - 6);
+        int btnClearWidth = 88;
+        btnClearServerLogs.Size = new Size(btnClearWidth, 30);
+        btnClearServerLogs.Location = new Point(cardWidth - padX - btnClearWidth, 282);
+
+        lblLogs.Location = new Point(padX, 287);
+        lblLogs.Width = Math.Max(100, btnClearServerLogs.Left - padX - 8);
+
+        rtbServerLogs.Location = new Point(padX, 322);
         rtbServerLogs.Width = innerWidth;
-        rtbServerLogs.Height = Math.Max(260, panelServerInfoCard.Height - rtbServerLogs.Top - 16);
+        rtbServerLogs.Height = Math.Max(260, panelServerInfoCard.ClientSize.Height - rtbServerLogs.Top - 18);
     }
 
     private void UpdatePurposeUiState()
@@ -892,7 +1030,7 @@ public partial class Form1
         txtServerUser.Visible  = showCreds;
         txtServerPass.Visible  = showCreds;
         btnTogglePassVisibility.Visible = showCreds;
-        lblPassHelp.Visible    = showCreds;
+        lblPassHelp.Visible    = false; // Oculto permanentemente del diseño visual
 
         // Los puertos solo aplican para Archivos y HTTP Injector
         lblServerSshPort.Visible   = showCreds;
@@ -929,6 +1067,7 @@ public partial class Form1
         }
 
         UpdateConnectionStringPreview();
+        AdjustModoServidorLayout();
     }
 
     private void UpdateOpenSshStatusUi()
@@ -1706,5 +1845,6 @@ public partial class Form1
         UpdatePurposeUiState();
         UpdateConnectionStringPreview();
         UpdateOpenSshStatusUi();
+        AdjustModoServidorLayout();
     }
 }

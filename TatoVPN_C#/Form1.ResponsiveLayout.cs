@@ -116,4 +116,41 @@ public partial class Form1
             btnClearHistory.Left = Math.Max(minLeft, rightPos);
         };
     }
+
+    private void SetupResponsiveSidebarLayout()
+    {
+        panelSidebarStatusCard.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        panelNavButtons.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        panelNavButtons.AutoScroll = true;
+
+        panelSidebar.Resize += (s, e) => AdjustSidebarLayout();
+        AdjustSidebarLayout();
+    }
+
+    private void AdjustSidebarLayout()
+    {
+        if (panelSidebar == null || panelNavButtons == null || panelSidebarStatusCard == null) return;
+
+        int statusCardHeight = panelSidebarStatusCard.Height > 0 ? panelSidebarStatusCard.Height : 95;
+        int statusCardTop = panelSidebar.ClientSize.Height - statusCardHeight - 12;
+        panelSidebarStatusCard.Top = statusCardTop;
+
+        int navTop = picLogo.Bottom + 6;
+        int navHeight = Math.Max(80, statusCardTop - navTop - 8);
+        panelNavButtons.Top = navTop;
+        panelNavButtons.Height = navHeight;
+
+        // Ajustar ancho de botones al área cliente interna para evitar scrollbar horizontal
+        int btnWidth = panelNavButtons.ClientSize.Width;
+        if (btnWidth > 50)
+        {
+            foreach (Control c in panelNavButtons.Controls)
+            {
+                if (c is Button btn)
+                {
+                    btn.Width = btnWidth;
+                }
+            }
+        }
+    }
 }

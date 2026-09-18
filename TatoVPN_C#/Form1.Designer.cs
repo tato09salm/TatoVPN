@@ -371,9 +371,10 @@ partial class Form1
         panelNavButtons.Controls.Add(btnNavConfigSsh);
         panelNavButtons.Controls.Add(btnNavInicio);
         panelNavButtons.Controls.Add(btnNavDashboard);
-        panelNavButtons.Location = new Point(12, 146);
+        panelNavButtons.AutoScroll = true;
+        panelNavButtons.Location = new Point(12, 112);
         panelNavButtons.Name = "panelNavButtons";
-        panelNavButtons.Size = new Size(256, 474);
+        panelNavButtons.Size = new Size(256, 468);
         panelNavButtons.TabIndex = 1;
         // 
         // btnNavAcerca
@@ -384,7 +385,7 @@ partial class Form1
         btnNavAcerca.FlatStyle = FlatStyle.Flat;
         btnNavAcerca.Font = new Font("Segoe UI", 9F);
         btnNavAcerca.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavAcerca.Location = new Point(0, 420);
+        btnNavAcerca.Location = new Point(0, 414);
         btnNavAcerca.Name = "btnNavAcerca";
         btnNavAcerca.Padding = new Padding(8, 0, 0, 0);
         btnNavAcerca.Size = new Size(256, 42);
@@ -402,7 +403,7 @@ partial class Form1
         btnNavConexionRemota.FlatStyle = FlatStyle.Flat;
         btnNavConexionRemota.Font = new Font("Segoe UI", 9F);
         btnNavConexionRemota.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavConexionRemota.Location = new Point(0, 336);
+        btnNavConexionRemota.Location = new Point(0, 322);
         btnNavConexionRemota.Name = "btnNavConexionRemota";
         btnNavConexionRemota.Padding = new Padding(8, 0, 0, 0);
         btnNavConexionRemota.Size = new Size(256, 42);
@@ -420,7 +421,7 @@ partial class Form1
         btnNavEscritorioRemoto.FlatStyle = FlatStyle.Flat;
         btnNavEscritorioRemoto.Font = new Font("Segoe UI", 9F);
         btnNavEscritorioRemoto.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavEscritorioRemoto.Location = new Point(0, 378);
+        btnNavEscritorioRemoto.Location = new Point(0, 368);
         btnNavEscritorioRemoto.Name = "btnNavEscritorioRemoto";
         btnNavEscritorioRemoto.Padding = new Padding(8, 0, 0, 0);
         btnNavEscritorioRemoto.Size = new Size(256, 42);
@@ -438,7 +439,7 @@ partial class Form1
         btnNavModoServidor.FlatStyle = FlatStyle.Flat;
         btnNavModoServidor.Font = new Font("Segoe UI", 9F);
         btnNavModoServidor.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavModoServidor.Location = new Point(0, 288);
+        btnNavModoServidor.Location = new Point(0, 276);
         btnNavModoServidor.Name = "btnNavModoServidor";
         btnNavModoServidor.Padding = new Padding(8, 0, 0, 0);
         btnNavModoServidor.Size = new Size(256, 42);
@@ -456,7 +457,7 @@ partial class Form1
         btnNavRegistro.FlatStyle = FlatStyle.Flat;
         btnNavRegistro.Font = new Font("Segoe UI", 9F);
         btnNavRegistro.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavRegistro.Location = new Point(0, 240);
+        btnNavRegistro.Location = new Point(0, 230);
         btnNavRegistro.Name = "btnNavRegistro";
         btnNavRegistro.Padding = new Padding(8, 0, 0, 0);
         btnNavRegistro.Size = new Size(256, 42);
@@ -474,7 +475,7 @@ partial class Form1
         btnNavFiltro.FlatStyle = FlatStyle.Flat;
         btnNavFiltro.Font = new Font("Segoe UI", 9F);
         btnNavFiltro.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavFiltro.Location = new Point(0, 192);
+        btnNavFiltro.Location = new Point(0, 184);
         btnNavFiltro.Name = "btnNavFiltro";
         btnNavFiltro.Padding = new Padding(8, 0, 0, 0);
         btnNavFiltro.Size = new Size(256, 42);
@@ -492,7 +493,7 @@ partial class Form1
         btnNavConfigs.FlatStyle = FlatStyle.Flat;
         btnNavConfigs.Font = new Font("Segoe UI", 9F);
         btnNavConfigs.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavConfigs.Location = new Point(0, 144);
+        btnNavConfigs.Location = new Point(0, 138);
         btnNavConfigs.Name = "btnNavConfigs";
         btnNavConfigs.Padding = new Padding(8, 0, 0, 0);
         btnNavConfigs.Size = new Size(256, 42);
@@ -510,7 +511,7 @@ partial class Form1
         btnNavConfigSsh.FlatStyle = FlatStyle.Flat;
         btnNavConfigSsh.Font = new Font("Segoe UI", 9F);
         btnNavConfigSsh.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavConfigSsh.Location = new Point(0, 96);
+        btnNavConfigSsh.Location = new Point(0, 92);
         btnNavConfigSsh.Name = "btnNavConfigSsh";
         btnNavConfigSsh.Padding = new Padding(8, 0, 0, 0);
         btnNavConfigSsh.Size = new Size(256, 42);
@@ -528,7 +529,7 @@ partial class Form1
         btnNavInicio.FlatStyle = FlatStyle.Flat;
         btnNavInicio.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
         btnNavInicio.ForeColor = Color.White;
-        btnNavInicio.Location = new Point(0, 48);
+        btnNavInicio.Location = new Point(0, 46);
         btnNavInicio.Name = "btnNavInicio";
         btnNavInicio.Padding = new Padding(8, 0, 0, 0);
         btnNavInicio.Size = new Size(256, 42);
@@ -558,9 +559,9 @@ partial class Form1
         // 
         // picLogo
         // 
-        picLogo.Location = new Point(12, 12);
+        picLogo.Location = new Point(12, 10);
         picLogo.Name = "picLogo";
-        picLogo.Size = new Size(211, 130);
+        picLogo.Size = new Size(256, 95);
         picLogo.SizeMode = PictureBoxSizeMode.Zoom;
         picLogo.TabIndex = 0;
         picLogo.TabStop = false;
