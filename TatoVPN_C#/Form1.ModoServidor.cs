@@ -87,6 +87,7 @@ public partial class Form1
     private const string FwRuleSsh = "TatoVPN_Server_SSH_Inbound";
     private const string FwRuleProxy = "TatoVPN_Server_Proxy_Inbound";
     private const string FwRuleOpenSsh = "TatoVPN_Server_OpenSSH_Inbound";
+    private const string FwRuleDesktop = "TatoVPN_Server_Desktop_Inbound";
 
     private void InitializeModoServidor()
     {
@@ -1257,6 +1258,7 @@ public partial class Form1
             else if (isDesktopMode)
             {
                 // ── Flujo C: Escritorio Remoto — inicia RemoteDesktopServerService ──────
+                ApplyServerFirewallRulesForDesktop(RemoteDesktopServerService.DefaultPort);
                 _remoteDesktopServer = new RemoteDesktopServerService();
                 _remoteDesktopServer.OnLog += AppendServerLog;
                 _remoteDesktopServer.OnClientConnected += () =>
@@ -1656,6 +1658,20 @@ public partial class Form1
         }
     }
 
+    private void ApplyServerFirewallRulesForDesktop(int port)
+    {
+        try
+        {
+            RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleDesktop}\"");
+            RunNetshDirect($"advfirewall firewall add rule name=\"{FwRuleDesktop}\" dir=in action=allow protocol=TCP localport={port} profile=any");
+            AppendServerLog($"🛡️ Firewall de Windows configurado: puerto {port} (Escritorio Remoto) permitido.");
+        }
+        catch (Exception ex)
+        {
+            AppendServerLog($"⚠️ Aviso Firewall: {ex.Message}");
+        }
+    }
+
     private void RemoveServerFirewallRules()
     {
         try
@@ -1663,6 +1679,7 @@ public partial class Form1
             RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleSsh}\"");
             RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleProxy}\"");
             RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleOpenSsh}\"");
+            RunNetshDirect($"advfirewall firewall delete rule name=\"{FwRuleDesktop}\"");
         }
         catch { }
     }

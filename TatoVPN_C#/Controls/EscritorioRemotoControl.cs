@@ -1,7 +1,34 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text.Json;
 
 namespace miVPN.Controls;
+
+/// <summary>
+/// Canvas interactivo para el visor de escritorio remoto.
+/// Es un PictureBox con soporte nativo de foco para recibir tanto eventos de mouse
+/// como eventos de teclado (KeyDown/KeyUp) sin requerir paneles superpuestos.
+/// </summary>
+public class RemoteDesktopCanvas : PictureBox
+{
+    public RemoteDesktopCanvas()
+    {
+        SetStyle(ControlStyles.Selectable, true);
+        TabStop = true;
+    }
+
+    protected override bool IsInputKey(Keys keyData)
+    {
+        // Evita que WinForms intercepte flechas, Tab, Enter, Escape, Backspace, etc.
+        return true;
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        this.Focus();
+        base.OnMouseDown(e);
+    }
+}
 
 /// <summary>
 /// Control de cliente para Escritorio Remoto TatoVPN.
@@ -42,8 +69,8 @@ public class EscritorioRemotoControl : UserControl
     private Label     lblFps           = null!;
     private TrackBar  sliderQuality    = null!;
     private Label     lblQualityVal    = null!;
-    private PictureBox pbPantalla      = null!;
-    private Panel     pnlKeyCapture    = null!;
+    private RemoteDesktopCanvas pbPantalla = null!;
+    private bool      _firstFrameRendered;
 
     // ── Estado TCP ───────────────────────────────────────────────────────
     private TcpClient?    _tcpClient;
@@ -429,42 +456,24 @@ public class EscritorioRemotoControl : UserControl
         panelToolbar.Controls.Add(panelToolbarLeft);
         panelDesktop.Controls.Add(panelToolbar);
 
-        // ── PictureBox (vista de pantalla remota) ───────────────────────
-        pbPantalla = new PictureBox
+        // ── PictureBox Canvas interactivo (vista de pantalla remota) ───
+        pbPantalla = new RemoteDesktopCanvas
         {
-            Dock     = DockStyle.Fill,
+            Dock      = DockStyle.Fill,
             BackColor = Color.Black,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            Cursor   = Cursors.Cross
+            SizeMode  = PictureBoxSizeMode.Zoom,
+            Cursor    = Cursors.Cross
         };
         pbPantalla.MouseMove  += PbPantalla_MouseMove;
         pbPantalla.MouseDown  += PbPantalla_MouseDown;
         pbPantalla.MouseUp    += PbPantalla_MouseUp;
         pbPantalla.MouseWheel += PbPantalla_MouseWheel;
-        pbPantalla.Click      += (s, e) => pnlKeyCapture.Focus();
+        pbPantalla.KeyDown    += PbPantalla_KeyDown;
+        pbPantalla.KeyUp      += PbPantalla_KeyUp;
         panelDesktop.Controls.Add(pbPantalla);
 
-        // ── Panel transparente de captura de teclado ────────────────────
-        // Overlay sobre pbPantalla con TabStop=true para recibir KeyDown/KeyUp.
-        // Invisible para el usuario, pero captura todas las pulsaciones de tecla.
-        pnlKeyCapture = new Panel
-        {
-            Dock      = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            TabStop   = true
-        };
-        pnlKeyCapture.KeyDown        += PnlKeyCapture_KeyDown;
-        pnlKeyCapture.KeyUp          += PnlKeyCapture_KeyUp;
-        pnlKeyCapture.PreviewKeyDown += (s, e) =>
-        {
-            // Marcar teclas especiales como "input keys" para que WinForms no las consuma
-            if (e.KeyCode is Keys.Tab or Keys.Return or Keys.Escape
-                or Keys.Up or Keys.Down or Keys.Left or Keys.Right
-                or Keys.Back or Keys.Delete)
-                e.IsInputKey = true;
-        };
-        panelDesktop.Controls.Add(pnlKeyCapture);
-        pnlKeyCapture.BringToFront();
+        // Asegurar que el toolbar superior se mantenga al frente y visible
+        panelToolbar.BringToFront();
 
         panelBody.Controls.Add(panelDesktop);
     }
@@ -491,9 +500,11 @@ public class EscritorioRemotoControl : UserControl
         _isConnecting = true;
         _cts          = new CancellationTokenSource();
         var ct        = _cts.Token;
+        _firstFrameRendered = false;
 
         try
         {
+            Debug.WriteLine($"[EscritorioRemoto] Conectando a {host}:{port}...");
             SetStatus("⏳ CONECTANDO...", Color.FromArgb(251, 191, 36), $"Conectando a {host}:{port}...");
             btnConectar.Enabled = false;
 
@@ -503,6 +514,7 @@ public class EscritorioRemotoControl : UserControl
             _isConnected  = true;
             _isConnecting = false;
 
+            Debug.WriteLine($"[EscritorioRemoto] ✅ Conexión TCP establecida con éxito hacia {host}:{port}!");
             GuardarUltimaConexion(host, port);
             ShowDesktopView();
 
@@ -516,6 +528,7 @@ public class EscritorioRemotoControl : UserControl
             _isConnecting    = false;
             _isConnected     = false;
             btnConectar.Enabled = true;
+            Debug.WriteLine($"[EscritorioRemoto] ❌ Error conectando a {host}:{port}: {ex.Message}");
             SetStatus("❌ ERROR DE CONEXIÓN", Color.FromArgb(239, 68, 68),
                       ex.Message.Length > 80 ? ex.Message[..80] + "…" : ex.Message);
         }
@@ -528,8 +541,10 @@ public class EscritorioRemotoControl : UserControl
     private async Task ReceiveLoopAsync(CancellationToken ct)
     {
         var buf = new byte[8];
+        bool firstFrameLogged = false;
         try
         {
+            Debug.WriteLine("[EscritorioRemoto] 🔄 ReceiveLoopAsync iniciado.");
             while (!ct.IsCancellationRequested && _isConnected)
             {
                 // Leer tipo (1 byte)
@@ -542,6 +557,7 @@ public class EscritorioRemotoControl : UserControl
                         await ReadExactAsync(buf, 0, 4, ct);
                         _remoteWidth  = buf[0] | (buf[1] << 8);
                         _remoteHeight = buf[2] | (buf[3] << 8);
+                        Debug.WriteLine($"[EscritorioRemoto] 🤝 Handshake 0xF0 recibido: Resolución remota = {_remoteWidth}×{_remoteHeight} px");
                         SafeInvoke(() =>
                         {
                             lblDesktopStatus.Text      = $"● Activo | {_remoteWidth}×{_remoteHeight}";
@@ -559,6 +575,13 @@ public class EscritorioRemotoControl : UserControl
 
                         var frameData = new byte[len];
                         await ReadExactAsync(frameData, 0, len, ct);
+
+                        if (!firstFrameLogged)
+                        {
+                            firstFrameLogged = true;
+                            Debug.WriteLine($"[EscritorioRemoto] 📸 Primer frame 0x01 recibido ({len:N0} bytes).");
+                        }
+
                         DisplayFrame(frameData);
                         break;
 
@@ -571,6 +594,7 @@ public class EscritorioRemotoControl : UserControl
         catch (OperationCanceledException) { }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
+            Debug.WriteLine($"[EscritorioRemoto] ⚠️ Excepción en ReceiveLoopAsync: {ex.Message}");
             SafeInvoke(() => HandleDisconnection($"Sesión interrumpida: {ex.Message}"));
         }
     }
@@ -579,8 +603,10 @@ public class EscritorioRemotoControl : UserControl
     {
         try
         {
-            using var ms  = new MemoryStream(jpegData);
-            var newImage  = Image.FromStream(ms);
+            using var ms = new MemoryStream(jpegData);
+            using var temp = Image.FromStream(ms);
+            // new Bitmap(temp) crea una copia profunda GDI+ en memoria desacoplada del MemoryStream
+            var newImage = new Bitmap(temp);
 
             SafeInvoke(() =>
             {
@@ -589,6 +615,13 @@ public class EscritorioRemotoControl : UserControl
                     var old = pbPantalla.Image;
                     pbPantalla.Image = newImage;
                     old?.Dispose();
+                    pbPantalla.Invalidate();
+
+                    if (!_firstFrameRendered)
+                    {
+                        _firstFrameRendered = true;
+                        Debug.WriteLine($"[EscritorioRemoto] 🖼️ Primer frame decodificado y renderizado: {newImage.Width}×{newImage.Height} px!");
+                    }
 
                     // Actualizar fullscreen si está abierto
                     _fullscreenForm?.UpdateFrame(newImage);
@@ -603,10 +636,17 @@ public class EscritorioRemotoControl : UserControl
                         _lastFpsMeasure = DateTime.Now;
                     }
                 }
-                catch { newImage.Dispose(); }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[EscritorioRemoto] Error en SafeInvoke DisplayFrame: {ex.Message}");
+                    newImage.Dispose();
+                }
             });
         }
-        catch { /* Frame corrupto — ignorar */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[EscritorioRemoto] Error decodificando frame JPEG ({jpegData?.Length ?? 0} bytes): {ex.Message}");
+        }
     }
 
     private async Task KeepaliveLoopAsync(CancellationToken ct)
@@ -708,7 +748,7 @@ public class EscritorioRemotoControl : UserControl
     private async void PbPantalla_MouseDown(object? sender, MouseEventArgs e)
     {
         if (!_isConnected || _stream == null) return;
-        pnlKeyCapture.Focus();
+        pbPantalla.Focus();
 
         var remote = TranslateToRemote(e.Location);
         if (remote.IsEmpty) return;
@@ -776,7 +816,7 @@ public class EscritorioRemotoControl : UserControl
     // Eventos de teclado
     // ════════════════════════════════════════════════════════════════════
 
-    private async void PnlKeyCapture_KeyDown(object? sender, KeyEventArgs e)
+    private async void PbPantalla_KeyDown(object? sender, KeyEventArgs e)
     {
         if (!_isConnected || _stream == null) return;
         e.Handled         = true;
@@ -788,10 +828,13 @@ public class EscritorioRemotoControl : UserControl
             // [0x20][vk:2LE]
             await _stream.WriteAsync(new byte[] { 0x20, (byte)(vk & 0xFF), (byte)((vk >> 8) & 0xFF) });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[EscritorioRemoto] Error enviando KeyDown {vk}: {ex.Message}");
+        }
     }
 
-    private async void PnlKeyCapture_KeyUp(object? sender, KeyEventArgs e)
+    private async void PbPantalla_KeyUp(object? sender, KeyEventArgs e)
     {
         if (!_isConnected || _stream == null) return;
         e.Handled = true;
@@ -802,7 +845,10 @@ public class EscritorioRemotoControl : UserControl
             // [0x21][vk:2LE]
             await _stream.WriteAsync(new byte[] { 0x21, (byte)(vk & 0xFF), (byte)((vk >> 8) & 0xFF) });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[EscritorioRemoto] Error enviando KeyUp {vk}: {ex.Message}");
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -892,7 +938,7 @@ public class EscritorioRemotoControl : UserControl
         panelDesktop.BringToFront();
         lblDesktopStatus.Text      = "● Conectando...";
         lblDesktopStatus.ForeColor = Color.FromArgb(251, 191, 36);
-        pnlKeyCapture.Focus();
+        pbPantalla.Focus();
     }
 
     private void SetStatus(string title, Color color, string sub = "")
@@ -1034,8 +1080,7 @@ public class EscritorioRemotoControl : UserControl
 /// </summary>
 public class FullscreenDesktopForm : Form
 {
-    private readonly PictureBox _pb;
-    private readonly Panel _overlay;
+    private readonly RemoteDesktopCanvas _pb;
     private readonly EscritorioRemotoControl _parent;
     private readonly NetworkStream? _stream;
 
@@ -1050,12 +1095,18 @@ public class FullscreenDesktopForm : Form
         this.KeyPreview      = true;
         this.Text            = "TatoVPN — Escritorio Remoto (Pantalla completa | ESC para salir)";
 
-        _pb = new PictureBox
+        _pb = new RemoteDesktopCanvas
         {
             Dock      = DockStyle.Fill,
             BackColor = Color.Black,
             SizeMode  = PictureBoxSizeMode.Zoom
         };
+        _pb.MouseMove  += Parent_MouseMove;
+        _pb.MouseDown  += Parent_MouseDown;
+        _pb.MouseUp    += Parent_MouseUp;
+        _pb.MouseWheel += Parent_MouseWheel;
+        _pb.KeyDown    += Parent_KeyDown;
+        _pb.KeyUp      += Parent_KeyUp;
         this.Controls.Add(_pb);
 
         // Barra flotante: "Esc = Salir"
@@ -1072,34 +1123,12 @@ public class FullscreenDesktopForm : Form
         this.Controls.Add(hint);
         hint.BringToFront();
 
-        _overlay = new Panel
-        {
-            Dock      = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            TabStop   = true
-        };
-        _overlay.PreviewKeyDown += (s, e) =>
-        {
-            if (e.KeyCode is Keys.Tab or Keys.Return or Keys.Escape or Keys.Back or Keys.Delete
-                or Keys.Up or Keys.Down or Keys.Left or Keys.Right)
-                e.IsInputKey = true;
-        };
-        _overlay.MouseMove  += Parent_MouseMove;
-        _overlay.MouseDown  += Parent_MouseDown;
-        _overlay.MouseUp    += Parent_MouseUp;
-        _overlay.MouseWheel += Parent_MouseWheel;
-        _overlay.KeyDown    += Parent_KeyDown;
-        _overlay.KeyUp      += Parent_KeyUp;
-        this.Controls.Add(_overlay);
-        _overlay.BringToFront();
-        hint.BringToFront();
-
         this.KeyDown += (s, e) =>
         {
             if (e.KeyCode is Keys.Escape or Keys.F11) this.Close();
         };
 
-        this.Shown += (s, e) => _overlay.Focus();
+        this.Shown += (s, e) => _pb.Focus();
     }
 
     public void UpdateFrame(Image frame)

@@ -142,11 +142,18 @@ public class RemoteDesktopServerService : IDisposable
             _screenHeight = bounds.Height;
 
             _cts = new CancellationTokenSource();
-            _listener = new TcpListener(IPAddress.Loopback, DefaultPort);
+            _listener = new TcpListener(IPAddress.Any, DefaultPort);
+            try
+            {
+                _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            }
+            catch { }
             _listener.Start();
             _isRunning = true;
 
-            OnLog?.Invoke($"🖥️ Servidor Escritorio Remoto escuchando en 127.0.0.1:{DefaultPort}");
+            string listenMsg = $"🖥️ Servidor Escritorio Remoto escuchando en 0.0.0.0:{DefaultPort} (LAN y Local)";
+            OnLog?.Invoke(listenMsg);
+            Debug.WriteLine($"[RemoteDesktopServer] {listenMsg}");
             OnLog?.Invoke($"   Resolución: {_screenWidth}×{_screenHeight} | Calidad JPEG: {_jpegQuality}% | Intervalo: {_captureIntervalMs}ms");
             OnLog?.Invoke("⏳ Esperando que el cliente de escritorio remoto se conecte...");
 
@@ -154,7 +161,9 @@ public class RemoteDesktopServerService : IDisposable
         }
         catch (Exception ex)
         {
-            OnLog?.Invoke($"❌ Error iniciando servidor de escritorio: {ex.Message}");
+            string errMsg = $"❌ Error iniciando servidor de escritorio: {ex.Message}";
+            OnLog?.Invoke(errMsg);
+            Debug.WriteLine($"[RemoteDesktopServer] {errMsg}");
             _isRunning = false;
         }
     }
@@ -250,6 +259,9 @@ public class RemoteDesktopServerService : IDisposable
         msg[3] = (byte)(_screenHeight & 0xFF);
         msg[4] = (byte)((_screenHeight >> 8) & 0xFF);
         await stream.WriteAsync(msg, ct);
+        string infoLog = $"🤝 [Host] Handshake 0xF0 enviado: Resolución {_screenWidth}×{_screenHeight} px";
+        OnLog?.Invoke(infoLog);
+        Debug.WriteLine($"[RemoteDesktopServer] {infoLog}");
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -263,13 +275,16 @@ public class RemoteDesktopServerService : IDisposable
 
         if (jpegEncoder == null)
         {
-            OnLog?.Invoke("❌ No se encontró el codificador JPEG del sistema.");
+            string errEncoder = "❌ No se encontró el codificador JPEG del sistema.";
+            OnLog?.Invoke(errEncoder);
+            Debug.WriteLine($"[RemoteDesktopServer] {errEncoder}");
             return;
         }
 
         var sw = Stopwatch.StartNew();
         int frameCount = 0;
         long lastFpsReport = 0;
+        bool firstFrameLogged = false;
         var header = new byte[5];
 
         while (!ct.IsCancellationRequested && !_disposed)
@@ -279,6 +294,14 @@ public class RemoteDesktopServerService : IDisposable
             {
                 // 1. Capturar pantalla y comprimir como JPEG
                 byte[] jpegData = CaptureScreenAsJpeg(jpegEncoder, _jpegQuality);
+
+                if (!firstFrameLogged)
+                {
+                    firstFrameLogged = true;
+                    string firstMsg = $"📸 [Host] Primer frame capturado: {_screenWidth}×{_screenHeight} px | {jpegData.Length:N0} bytes | Calidad: {_jpegQuality}% | Tiempo captura: {sw.ElapsedMilliseconds - frameStart}ms";
+                    OnLog?.Invoke(firstMsg);
+                    Debug.WriteLine($"[RemoteDesktopServer] {firstMsg}");
+                }
 
                 // 2. Enviar: [0x01][len:4LE][datos JPEG]
                 int len = jpegData.Length;
@@ -290,6 +313,13 @@ public class RemoteDesktopServerService : IDisposable
 
                 await stream.WriteAsync(header, ct);
                 await stream.WriteAsync(jpegData, ct);
+
+                if (frameCount == 0)
+                {
+                    string firstSent = $"🚀 [Host] Primer frame enviado exitosamente por TCP ({len:N0} bytes).";
+                    OnLog?.Invoke(firstSent);
+                    Debug.WriteLine($"[RemoteDesktopServer] {firstSent}");
+                }
 
                 frameCount++;
 
@@ -310,7 +340,9 @@ public class RemoteDesktopServerService : IDisposable
             catch (OperationCanceledException) { break; }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                OnLog?.Invoke($"⚠️ Error enviando frame: {ex.Message}");
+                string sendErr = $"⚠️ Error enviando frame: {ex.Message}";
+                OnLog?.Invoke(sendErr);
+                Debug.WriteLine($"[RemoteDesktopServer] {sendErr}");
                 break;
             }
         }
@@ -322,16 +354,24 @@ public class RemoteDesktopServerService : IDisposable
     /// </summary>
     private byte[] CaptureScreenAsJpeg(ImageCodecInfo encoder, int quality)
     {
-        var bounds = Screen.PrimaryScreen?.Bounds ?? new Rectangle(0, 0, _screenWidth, _screenHeight);
-        using var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
-        using (var g = Graphics.FromImage(bmp))
-            g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
+        try
+        {
+            var bounds = Screen.PrimaryScreen?.Bounds ?? new Rectangle(0, 0, _screenWidth, _screenHeight);
+            using var bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
+            using (var g = Graphics.FromImage(bmp))
+                g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size, CopyPixelOperation.SourceCopy);
 
-        var ep = new EncoderParameters(1);
-        ep.Param[0] = new EncoderParameter(Encoder.Quality, (long)quality);
-        using var ms = new MemoryStream();
-        bmp.Save(ms, encoder, ep);
-        return ms.ToArray();
+            var ep = new EncoderParameters(1);
+            ep.Param[0] = new EncoderParameter(Encoder.Quality, (long)quality);
+            using var ms = new MemoryStream();
+            bmp.Save(ms, encoder, ep);
+            return ms.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[RemoteDesktopServer] Error en CaptureScreenAsJpeg: {ex.Message}");
+            throw;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
