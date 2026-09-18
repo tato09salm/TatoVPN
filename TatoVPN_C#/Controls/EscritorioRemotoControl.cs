@@ -79,6 +79,15 @@ public class EscritorioRemotoControl : UserControl
     private CancellationTokenSource? _cts;
     private bool _isConnected;
     private bool _isConnecting;
+    private bool _isDisconnecting;
+    private string _currentHost = "";
+    private int    _currentPort = 0;
+
+    /// <summary>
+    /// Evento emitido cuando el cliente se conecta o desconecta del host remoto.
+    /// (bool isConnected, string info)
+    /// </summary>
+    public event Action<bool, string>? ConnectionStateChanged;
 
     // ── Dimensiones de la pantalla remota ────────────────────────────────
     private int _remoteWidth;
@@ -447,9 +456,9 @@ public class EscritorioRemotoControl : UserControl
         panelToolbar = new Panel
         {
             Dock      = DockStyle.Top,
-            Height    = 42,
+            Height    = 44,
             BackColor = Color.FromArgb(15, 23, 42),
-            Padding   = new Padding(6, 4, 6, 4)
+            Padding   = new Padding(12, 6, 12, 6)
         };
 
         var panelToolbarLeft = new FlowLayoutPanel
@@ -466,42 +475,12 @@ public class EscritorioRemotoControl : UserControl
         lblDesktopStatus = new Label
         {
             Text      = "● Conectando...",
-            Font      = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(251, 191, 36),
+            Font      = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(34, 197, 94),
             AutoSize  = true,
-            Margin    = new Padding(4, 7, 10, 0)
+            Margin    = new Padding(0, 6, 12, 0)
         };
         panelToolbarLeft.Controls.Add(lblDesktopStatus);
-
-        btnDesconectar = new Button
-        {
-            Text      = "⏹ Desconectar",
-            Size      = new Size(125, 28),
-            BackColor = Color.FromArgb(220, 38, 38),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font      = new Font("Segoe UI", 8F, FontStyle.Bold),
-            Cursor    = Cursors.Hand,
-            Margin    = new Padding(0, 2, 8, 0)
-        };
-        btnDesconectar.FlatAppearance.BorderSize = 0;
-        btnDesconectar.Click += (s, e) => Disconnect();
-        panelToolbarLeft.Controls.Add(btnDesconectar);
-
-        btnFullscreen = new Button
-        {
-            Text      = "⤢",
-            Size      = new Size(36, 28),
-            BackColor = Color.FromArgb(30, 41, 59),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font      = new Font("Segoe UI", 11F),
-            Cursor    = Cursors.Hand,
-            Margin    = new Padding(0, 2, 0, 0)
-        };
-        btnFullscreen.FlatAppearance.BorderSize = 0;
-        btnFullscreen.Click += BtnFullscreen_Click;
-        panelToolbarLeft.Controls.Add(btnFullscreen);
 
         var panelToolbarRight = new FlowLayoutPanel
         {
@@ -514,18 +493,28 @@ public class EscritorioRemotoControl : UserControl
             Margin        = new Padding(0)
         };
 
+        lblFps = new Label
+        {
+            Text      = "— FPS",
+            Font      = new Font("Consolas", 8.5F),
+            ForeColor = Color.FromArgb(34, 197, 94),
+            AutoSize  = true,
+            Margin    = new Padding(0, 7, 10, 0)
+        };
+        panelToolbarRight.Controls.Add(lblFps);
+
         panelToolbarRight.Controls.Add(new Label
         {
             Text      = "Cal.:",
-            Font      = new Font("Segoe UI", 7.5F),
+            Font      = new Font("Segoe UI", 8F),
             ForeColor = Color.FromArgb(148, 163, 184),
             AutoSize  = true,
-            Margin    = new Padding(0, 9, 2, 0)
+            Margin    = new Padding(0, 7, 2, 0)
         });
 
         sliderQuality = new TrackBar
         {
-            Size          = new Size(95, 28),
+            Size          = new Size(85, 28),
             Minimum       = 1,
             Maximum       = 9,
             Value         = 4,
@@ -540,22 +529,42 @@ public class EscritorioRemotoControl : UserControl
         lblQualityVal = new Label
         {
             Text      = "40%",
-            Font      = new Font("Segoe UI", 7.5F),
+            Font      = new Font("Segoe UI", 8F),
             ForeColor = Color.FromArgb(148, 163, 184),
             AutoSize  = true,
-            Margin    = new Padding(0, 9, 10, 0)
+            Margin    = new Padding(0, 7, 12, 0)
         };
         panelToolbarRight.Controls.Add(lblQualityVal);
 
-        lblFps = new Label
+        btnFullscreen = new Button
         {
-            Text      = "— FPS",
-            Font      = new Font("Consolas", 8F),
-            ForeColor = Color.FromArgb(34, 197, 94),
-            AutoSize  = true,
-            Margin    = new Padding(0, 9, 4, 0)
+            Text      = "⤢ Pantalla Completa",
+            Size      = new Size(160, 32),
+            BackColor = Color.FromArgb(30, 41, 59),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0, 0, 8, 0)
         };
-        panelToolbarRight.Controls.Add(lblFps);
+        btnFullscreen.FlatAppearance.BorderSize = 0;
+        btnFullscreen.Click += BtnFullscreen_Click;
+        panelToolbarRight.Controls.Add(btnFullscreen);
+
+        btnDesconectar = new Button
+        {
+            Text      = "⏹  Desconectar",
+            Size      = new Size(135, 32),
+            BackColor = Color.FromArgb(220, 38, 38),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0, 0, 0, 0)
+        };
+        btnDesconectar.FlatAppearance.BorderSize = 0;
+        btnDesconectar.Click += (s, e) => Disconnect();
+        panelToolbarRight.Controls.Add(btnDesconectar);
 
         panelToolbar.Controls.Add(panelToolbarRight);
         panelToolbar.Controls.Add(panelToolbarLeft);
@@ -579,6 +588,7 @@ public class EscritorioRemotoControl : UserControl
 
         // Asegurar que el toolbar superior se mantenga al frente y visible
         panelToolbar.BringToFront();
+        pbPantalla.SendToBack();
 
         panelBody.Controls.Add(panelDesktop);
     }
@@ -603,6 +613,9 @@ public class EscritorioRemotoControl : UserControl
     private async Task ConnectAsync(string host, int port)
     {
         _isConnecting = true;
+        _isDisconnecting = false;
+        _currentHost = host;
+        _currentPort = port;
         _cts          = new CancellationTokenSource();
         var ct        = _cts.Token;
         _firstFrameRendered = false;
@@ -622,6 +635,7 @@ public class EscritorioRemotoControl : UserControl
             Debug.WriteLine($"[EscritorioRemoto] ✅ Conexión TCP establecida con éxito hacia {host}:{port}!");
             GuardarUltimaConexion(host, port);
             ShowDesktopView();
+            ConnectionStateChanged?.Invoke(true, $"{host}:{port}");
 
             _ = Task.Run(() => ReceiveLoopAsync(ct), ct);
             _ = Task.Run(() => KeepaliveLoopAsync(ct), ct);
@@ -664,7 +678,7 @@ public class EscritorioRemotoControl : UserControl
                         Debug.WriteLine($"[EscritorioRemoto] 🤝 Handshake 0xF0 recibido: Resolución remota = {_remoteWidth}×{_remoteHeight} px");
                         SafeInvoke(() =>
                         {
-                            lblDesktopStatus.Text      = $"● Activo | {_remoteWidth}×{_remoteHeight}";
+                            lblDesktopStatus.Text      = $"● Conectado a {_currentHost}:{_currentPort} ({_remoteWidth}×{_remoteHeight})";
                             lblDesktopStatus.ForeColor = Color.FromArgb(34, 197, 94);
                             lblStatusDot.ForeColor     = Color.FromArgb(34, 197, 94);
                         });
@@ -797,27 +811,45 @@ public class EscritorioRemotoControl : UserControl
 
     public void Disconnect()
     {
-        _isConnected = false;
-        _cts?.Cancel();
-        try { _tcpClient?.Close(); } catch { }
-        _tcpClient = null;
-        _stream    = null;
+        if (_isDisconnecting) return;
+        _isDisconnecting = true;
+        if (btnDesconectar != null) btnDesconectar.Enabled = false;
+
         HandleDisconnection("Desconectado por el usuario.");
     }
 
     private void HandleDisconnection(string reason)
     {
+        _isConnected = false;
+        try { _cts?.Cancel(); } catch { }
+        try { _stream?.Close(); } catch { }
+        try { _tcpClient?.Close(); } catch { }
+        try { _stream?.Dispose(); } catch { }
+        try { _tcpClient?.Dispose(); } catch { }
+        _tcpClient = null;
+        _stream    = null;
+
         if (!this.IsHandleCreated) return;
         SafeInvoke(() =>
         {
-            _isConnected = false;
+            _isDisconnecting = false;
+            if (btnDesconectar != null) btnDesconectar.Enabled = true;
+
             var old = pbPantalla?.Image;
             if (pbPantalla != null) pbPantalla.Image = null;
             old?.Dispose();
-            _fullscreenForm?.Close();
+
+            if (_fullscreenForm != null && !_fullscreenForm.IsDisposed)
+            {
+                _fullscreenForm.Close();
+                _fullscreenForm = null;
+            }
+
             ShowConnectionView();
             SetStatus("ESCRITORIO DESCONECTADO", Color.FromArgb(239, 68, 68), reason);
             if (btnConectar != null) btnConectar.Enabled = true;
+
+            ConnectionStateChanged?.Invoke(false, reason);
         });
     }
 
@@ -922,6 +954,16 @@ public class EscritorioRemotoControl : UserControl
     private async void PbPantalla_KeyDown(object? sender, KeyEventArgs e)
     {
         if (!_isConnected || _stream == null) return;
+
+        // Atajo local seguro de desconexión rápida (no se envía al host)
+        if (e.Control && e.Alt && e.Shift && e.KeyCode == Keys.D)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            Disconnect();
+            return;
+        }
+
         e.Handled         = true;
         e.SuppressKeyPress = true;
 
@@ -940,6 +982,13 @@ public class EscritorioRemotoControl : UserControl
     private async void PbPantalla_KeyUp(object? sender, KeyEventArgs e)
     {
         if (!_isConnected || _stream == null) return;
+
+        if (e.Control && e.Alt && e.Shift && e.KeyCode == Keys.D)
+        {
+            e.Handled = true;
+            return;
+        }
+
         e.Handled = true;
 
         ushort vk = (ushort)e.KeyCode;
@@ -1085,8 +1134,11 @@ public class EscritorioRemotoControl : UserControl
         panelConexion.Visible = false;
         panelDesktop.Visible  = true;
         panelDesktop.BringToFront();
-        lblDesktopStatus.Text      = "● Conectando...";
-        lblDesktopStatus.ForeColor = Color.FromArgb(251, 191, 36);
+        lblDesktopStatus.Text      = string.IsNullOrEmpty(_currentHost)
+            ? "● Conectado"
+            : $"● Conectado a {_currentHost}:{_currentPort}";
+        lblDesktopStatus.ForeColor = Color.FromArgb(34, 197, 94);
+        if (btnDesconectar != null) btnDesconectar.Enabled = true;
         pbPantalla.Focus();
     }
 
@@ -1143,8 +1195,13 @@ public class EscritorioRemotoControl : UserControl
             return;
         }
 
-        _fullscreenForm = new FullscreenDesktopForm(_stream, this);
-        _fullscreenForm.FormClosed += (s, ev) => _fullscreenForm = null;
+        string connInfo = string.IsNullOrEmpty(_currentHost) ? "" : $"{_currentHost}:{_currentPort}";
+        _fullscreenForm = new FullscreenDesktopForm(_stream, this, connInfo);
+        _fullscreenForm.FormClosed += (s, ev) =>
+        {
+            _fullscreenForm = null;
+            if (btnFullscreen != null) btnFullscreen.Text = "⤢ Pantalla Completa";
+        };
         _fullscreenForm.Show(this.ParentForm);
         btnFullscreen.Text = "✕ Salir";
     }
@@ -1236,7 +1293,7 @@ public class FullscreenDesktopForm : Form
     private readonly EscritorioRemotoControl _parent;
     private readonly NetworkStream? _stream;
 
-    public FullscreenDesktopForm(NetworkStream? stream, EscritorioRemotoControl parent)
+    public FullscreenDesktopForm(NetworkStream? stream, EscritorioRemotoControl parent, string connectionInfo = "")
     {
         _stream = stream;
         _parent = parent;
@@ -1247,6 +1304,88 @@ public class FullscreenDesktopForm : Form
         this.KeyPreview      = true;
         this.Text            = "TatoVPN — Escritorio Remoto (Pantalla completa | ESC para salir)";
 
+        // ── Barra superior en pantalla completa ─────────────────────────
+        var topBar = new Panel
+        {
+            Dock      = DockStyle.Top,
+            Height    = 44,
+            BackColor = Color.FromArgb(15, 23, 42),
+            Padding   = new Padding(16, 6, 16, 6)
+        };
+
+        var leftBox = new FlowLayoutPanel
+        {
+            Dock          = DockStyle.Left,
+            AutoSize      = true,
+            AutoSizeMode  = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents  = false,
+            BackColor     = Color.Transparent,
+            Margin        = new Padding(0)
+        };
+
+        var lblStatus = new Label
+        {
+            Text      = string.IsNullOrEmpty(connectionInfo)
+                ? "● Conectado (Pantalla Completa)"
+                : $"● Conectado a {connectionInfo} (Pantalla Completa)",
+            Font      = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(34, 197, 94),
+            AutoSize  = true,
+            Margin    = new Padding(0, 6, 12, 0)
+        };
+        leftBox.Controls.Add(lblStatus);
+
+        var rightBox = new FlowLayoutPanel
+        {
+            Dock          = DockStyle.Right,
+            AutoSize      = true,
+            AutoSizeMode  = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents  = false,
+            BackColor     = Color.Transparent,
+            Margin        = new Padding(0)
+        };
+
+        var btnSalirFs = new Button
+        {
+            Text      = "✕ Salir Pantalla Completa",
+            Size      = new Size(185, 32),
+            BackColor = Color.FromArgb(30, 41, 59),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0, 0, 8, 0)
+        };
+        btnSalirFs.FlatAppearance.BorderSize = 0;
+        btnSalirFs.Click += (s, e) => this.Close();
+        rightBox.Controls.Add(btnSalirFs);
+
+        var btnDesconectarFs = new Button
+        {
+            Text      = "⏹  Desconectar",
+            Size      = new Size(135, 32),
+            BackColor = Color.FromArgb(220, 38, 38),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Cursor    = Cursors.Hand,
+            Margin    = new Padding(0)
+        };
+        btnDesconectarFs.FlatAppearance.BorderSize = 0;
+        btnDesconectarFs.Click += (s, e) =>
+        {
+            this.Close();
+            _parent.Disconnect();
+        };
+        rightBox.Controls.Add(btnDesconectarFs);
+
+        topBar.Controls.Add(rightBox);
+        topBar.Controls.Add(leftBox);
+        this.Controls.Add(topBar);
+
+        // ── Canvas PictureBox (Dock=Fill) ──────────────────────────────
         _pb = new RemoteDesktopCanvas
         {
             Dock      = DockStyle.Fill,
@@ -1261,22 +1400,19 @@ public class FullscreenDesktopForm : Form
         _pb.KeyUp      += Parent_KeyUp;
         this.Controls.Add(_pb);
 
-        // Barra flotante: "Esc = Salir"
-        var hint = new Label
-        {
-            Text      = "[ ESC o F11 = Salir de pantalla completa ]",
-            Font      = new Font("Segoe UI", 9F),
-            ForeColor = Color.FromArgb(200, 148, 163, 184),
-            BackColor = Color.FromArgb(180, 15, 23, 42),
-            AutoSize  = true,
-            Padding   = new Padding(8, 4, 8, 4),
-            Location  = new Point(20, 12)
-        };
-        this.Controls.Add(hint);
-        hint.BringToFront();
+        topBar.BringToFront();
+        _pb.SendToBack();
 
         this.KeyDown += (s, e) =>
         {
+            if (e.Control && e.Alt && e.Shift && e.KeyCode == Keys.D)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                this.Close();
+                _parent.Disconnect();
+                return;
+            }
             if (e.KeyCode is Keys.Escape or Keys.F11) this.Close();
         };
 
@@ -1336,6 +1472,15 @@ public class FullscreenDesktopForm : Form
 
     private async void Parent_KeyDown(object? s, KeyEventArgs e)
     {
+        if (e.Control && e.Alt && e.Shift && e.KeyCode == Keys.D)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            this.Close();
+            _parent.Disconnect();
+            return;
+        }
+
         if (e.KeyCode is Keys.Escape or Keys.F11) { this.Close(); return; }
         e.Handled         = true;
         e.SuppressKeyPress = true;
@@ -1346,6 +1491,12 @@ public class FullscreenDesktopForm : Form
 
     private async void Parent_KeyUp(object? s, KeyEventArgs e)
     {
+        if (e.Control && e.Alt && e.Shift && e.KeyCode == Keys.D)
+        {
+            e.Handled = true;
+            return;
+        }
+
         e.Handled = true;
         if (_stream == null) return;
         ushort vk = (ushort)e.KeyCode;
