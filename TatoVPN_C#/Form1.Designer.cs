@@ -35,6 +35,7 @@ partial class Form1
         lblSidebarStatusTitle = new Label();
         panelNavButtons = new Panel();
         btnNavAcerca = new Button();
+        btnNavEscritorioRemoto = new Button();
         btnNavConexionRemota = new Button();
         btnNavModoServidor = new Button();
         btnNavFiltro = new Button();
@@ -361,6 +362,7 @@ partial class Form1
         // panelNavButtons
         // 
         panelNavButtons.Controls.Add(btnNavAcerca);
+        panelNavButtons.Controls.Add(btnNavEscritorioRemoto);
         panelNavButtons.Controls.Add(btnNavConexionRemota);
         panelNavButtons.Controls.Add(btnNavModoServidor);
         panelNavButtons.Controls.Add(btnNavRegistro);
@@ -371,7 +373,7 @@ partial class Form1
         panelNavButtons.Controls.Add(btnNavDashboard);
         panelNavButtons.Location = new Point(12, 146);
         panelNavButtons.Name = "panelNavButtons";
-        panelNavButtons.Size = new Size(256, 432);
+        panelNavButtons.Size = new Size(256, 474);
         panelNavButtons.TabIndex = 1;
         // 
         // btnNavAcerca
@@ -382,7 +384,7 @@ partial class Form1
         btnNavAcerca.FlatStyle = FlatStyle.Flat;
         btnNavAcerca.Font = new Font("Segoe UI", 9F);
         btnNavAcerca.ForeColor = Color.FromArgb(148, 163, 184);
-        btnNavAcerca.Location = new Point(0, 384);
+        btnNavAcerca.Location = new Point(0, 420);
         btnNavAcerca.Name = "btnNavAcerca";
         btnNavAcerca.Padding = new Padding(8, 0, 0, 0);
         btnNavAcerca.Size = new Size(256, 42);
@@ -409,6 +411,24 @@ partial class Form1
         btnNavConexionRemota.TextAlign = ContentAlignment.MiddleLeft;
         btnNavConexionRemota.UseVisualStyleBackColor = false;
         btnNavConexionRemota.Click += btnNavConexionRemota_Click;
+        // 
+        // btnNavEscritorioRemoto
+        // 
+        btnNavEscritorioRemoto.BackColor = Color.Transparent;
+        btnNavEscritorioRemoto.Cursor = Cursors.Hand;
+        btnNavEscritorioRemoto.FlatAppearance.BorderSize = 0;
+        btnNavEscritorioRemoto.FlatStyle = FlatStyle.Flat;
+        btnNavEscritorioRemoto.Font = new Font("Segoe UI", 9F);
+        btnNavEscritorioRemoto.ForeColor = Color.FromArgb(148, 163, 184);
+        btnNavEscritorioRemoto.Location = new Point(0, 378);
+        btnNavEscritorioRemoto.Name = "btnNavEscritorioRemoto";
+        btnNavEscritorioRemoto.Padding = new Padding(8, 0, 0, 0);
+        btnNavEscritorioRemoto.Size = new Size(256, 42);
+        btnNavEscritorioRemoto.TabIndex = 9;
+        btnNavEscritorioRemoto.Text = "🖥️  Escritorio Remoto";
+        btnNavEscritorioRemoto.TextAlign = ContentAlignment.MiddleLeft;
+        btnNavEscritorioRemoto.UseVisualStyleBackColor = false;
+        btnNavEscritorioRemoto.Click += btnNavEscritorioRemoto_Click;
         // 
         // btnNavModoServidor
         // 
@@ -2622,6 +2642,7 @@ partial class Form1
     private System.Windows.Forms.Button btnNavRegistro;
     private System.Windows.Forms.Button btnNavModoServidor;
     private System.Windows.Forms.Button btnNavConexionRemota;
+    private System.Windows.Forms.Button btnNavEscritorioRemoto;
     private System.Windows.Forms.Button btnNavAcerca;
     private System.Windows.Forms.Panel panelModoServidor;
     private System.Windows.Forms.Panel panelSidebarStatusCard;

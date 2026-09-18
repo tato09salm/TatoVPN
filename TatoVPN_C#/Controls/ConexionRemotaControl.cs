@@ -174,8 +174,8 @@ public class ConexionRemotaControl : UserControl
         // Card de conexión: TableLayoutPanel vertical con ancho controlado y alto automático
         var cardLayout = new TableLayoutPanel
         {
-            MinimumSize = new Size(500, 0),
-            MaximumSize = new Size(500, 0),
+            MinimumSize = new Size(360, 0),
+            MaximumSize = new Size(580, 0),
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = Color.FromArgb(22, 32, 48),
@@ -211,7 +211,6 @@ public class ConexionRemotaControl : UserControl
             ForeColor = Color.FromArgb(148, 163, 184),
             AutoSize = true,
             Dock = DockStyle.Top,
-            MaximumSize = new Size(456, 0),
             Margin = new Padding(0, 0, 0, 8)
         };
         cardLayout.Controls.Add(lblCardSub, 0, 1);
@@ -283,7 +282,6 @@ public class ConexionRemotaControl : UserControl
             ForeColor = Color.FromArgb(148, 163, 184),
             AutoSize = true,
             Dock = DockStyle.Top,
-            MaximumSize = new Size(430, 0),
             Margin = new Padding(0, 0, 0, 0)
         };
         tableStatus.Controls.Add(lblStatusSub, 0, 2);
@@ -529,7 +527,10 @@ public class ConexionRemotaControl : UserControl
     private void CenterConnectionCard()
     {
         if (panelConexion == null || panelCardConexion == null) return;
-        int x = Math.Max(20, (panelConexion.ClientSize.Width - panelCardConexion.Width) / 2);
+        int targetWidth = Math.Clamp(panelConexion.ClientSize.Width - 40, 360, 580);
+        panelCardConexion.MinimumSize = new Size(targetWidth, 0);
+        panelCardConexion.MaximumSize = new Size(targetWidth, 0);
+        int x = Math.Max(15, (panelConexion.ClientSize.Width - panelCardConexion.Width) / 2);
         int y = Math.Max(15, (panelConexion.ClientSize.Height - panelCardConexion.Height) / 2);
         panelCardConexion.Location = new Point(x, y);
     }
@@ -980,13 +981,13 @@ public class ConexionRemotaControl : UserControl
     private void AdjustListViewColumns()
     {
         if (lvFiles == null || lvFiles.Columns.Count < 4) return;
-        int totalWidth = lvFiles.ClientSize.Width;
+        int totalWidth = lvFiles.ClientSize.Width - 25; // 25px para scrollbar vertical
         if (totalWidth <= 0) return;
 
-        int colTipo = Math.Clamp(totalWidth / 5, 120, 160);
-        int colTamano = 100;
-        int colFecha = 160;
-        int colNombre = Math.Max(180, totalWidth - colTipo - colTamano - colFecha - 25);
+        int colTipo = Math.Clamp((int)(totalWidth * 0.20), 80, 160);
+        int colTamano = Math.Clamp((int)(totalWidth * 0.15), 65, 110);
+        int colFecha = Math.Clamp((int)(totalWidth * 0.22), 110, 170);
+        int colNombre = Math.Max(120, totalWidth - colTipo - colTamano - colFecha);
 
         lvFiles.Columns[0].Width = colNombre;
         lvFiles.Columns[1].Width = colTipo;

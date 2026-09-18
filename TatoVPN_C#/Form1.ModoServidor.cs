@@ -20,8 +20,9 @@ public partial class Form1
 
     // Selector de Modo / Propósito del Servidor
     private Label lblPurposeTitle = null!;
-    private RadioButton rbServerPurposeFiles = null!;
-    private RadioButton rbServerPurposeHttp = null!;
+    private RadioButton rbServerPurposeFiles   = null!;
+    private RadioButton rbServerPurposeHttp    = null!;
+    private RadioButton rbServerPurposeDesktop = null!;
 
     // Panel de estado y acción del Servidor OpenSSH de Windows
     private Panel panelOpenSshCard = null!;
@@ -46,9 +47,20 @@ public partial class Form1
     // Modo de Red
     private RadioButton rbServerLan = null!;
     private RadioButton rbServerRemote = null!;
+    private Panel pnlStatusBox = null!;
+    private Panel grpPurpose = null!;
+    private Panel grpNetwork = null!;
+    private Label lblLanDesc = null!;
+    private Label lblRemoteDesc = null!;
+    private Label lblModeTitle = null!;
 
     // Tarjeta derecha (Datos para conectar dispositivos & Logs)
     private Panel panelServerInfoCard = null!;
+    private Label lblInfoTitle = null!;
+    private Label lblIpLocal = null!;
+    private Label lblPublicHost = null!;
+    private Label lblConnString = null!;
+    private Label lblLogs = null!;
     private TextBox txtServerLocalIp = null!;
     private Button btnCopyLocalIp = null!;
     private Button btnRefreshIp = null!;
@@ -61,10 +73,11 @@ public partial class Form1
 
     // Estado del Servidor
     private bool _isServerRunning;
-    private LocalSshServerService? _localSshServer;
-    private LocalHttpProxyService? _localHttpProxy;
-    private BadVpnUdpGwService? _badvpnUdpGw;
-    private RemoteTunnelService? _remoteTunnel;
+    private LocalSshServerService?    _localSshServer;
+    private LocalHttpProxyService?    _localHttpProxy;
+    private BadVpnUdpGwService?       _badvpnUdpGw;
+    private RemoteTunnelService?      _remoteTunnel;
+    private RemoteDesktopServerService? _remoteDesktopServer;
     private string? _remotePublicHost;
     private int? _remotePublicPort;
     private int _sshActiveTunnels;
@@ -114,6 +127,9 @@ public partial class Form1
         BuildServerControlCard();
         BuildServerInfoCard();
 
+        panelModoServidor.Resize += (s, e) => AdjustModoServidorLayout();
+        AdjustModoServidorLayout();
+
         RefreshLocalIp();
         UpdatePurposeUiState();
         UpdateConnectionStringPreview();
@@ -125,13 +141,13 @@ public partial class Form1
         panelServerControlCard = new Panel
         {
             Location = new Point(20, 75),
-            Size = new Size(400, 595),
+            Size = new Size(400, 648), // +26px por la tercera opción de propósito
             BackColor = Color.FromArgb(22, 32, 48),
             BorderStyle = BorderStyle.None
         };
 
         // Estado del Servidor
-        var pnlStatusBox = new Panel
+        pnlStatusBox = new Panel
         {
             Location = new Point(16, 14),
             Size = new Size(368, 68),
@@ -189,42 +205,53 @@ public partial class Form1
 
         // Panel contenedor del grupo de propósito — imprescindible para que WinForms
         // trate estos RadioButtons como grupo separado al de 'Modo de Red' más abajo.
-        var grpPurpose = new Panel
+        grpPurpose = new Panel
         {
-            Location = new Point(16, 156),
-            Size = new Size(368, 52),
+            Location  = new Point(16, 156),
+            Size      = new Size(368, 78),   // 3 opciones × 26px
             BackColor = Color.Transparent
         };
 
         rbServerPurposeFiles = new RadioButton
         {
-            Text = "📁 Conexión Remota (Archivos / SFTP)",
-            Location = new Point(0, 0),
-            Size = new Size(368, 24),
+            Text      = "📁 Conexión Remota (Archivos / SFTP)",
+            Location  = new Point(0, 0),
+            Size      = new Size(368, 24),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Checked = true
+            Font      = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Checked   = true
         };
         rbServerPurposeFiles.CheckedChanged += (s, e) => UpdatePurposeUiState();
         grpPurpose.Controls.Add(rbServerPurposeFiles);
 
         rbServerPurposeHttp = new RadioButton
         {
-            Text = "📱 Compartir Internet (HTTP Injector / Proxy)",
-            Location = new Point(0, 26),
-            Size = new Size(368, 24),
+            Text      = "📱 Compartir Internet (HTTP Injector / Proxy)",
+            Location  = new Point(0, 26),
+            Size      = new Size(368, 24),
             ForeColor = Color.FromArgb(203, 213, 225),
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            Font      = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
         rbServerPurposeHttp.CheckedChanged += (s, e) => UpdatePurposeUiState();
         grpPurpose.Controls.Add(rbServerPurposeHttp);
+
+        rbServerPurposeDesktop = new RadioButton
+        {
+            Text      = "🖥️ Escritorio Remoto (Ver y controlar esta laptop)",
+            Location  = new Point(0, 52),
+            Size      = new Size(368, 24),
+            ForeColor = Color.FromArgb(203, 213, 225),
+            Font      = new Font("Segoe UI", 9F, FontStyle.Bold)
+        };
+        rbServerPurposeDesktop.CheckedChanged += (s, e) => UpdatePurposeUiState();
+        grpPurpose.Controls.Add(rbServerPurposeDesktop);
 
         panelServerControlCard.Controls.Add(grpPurpose);
 
         // Panel de Estado y Acción de OpenSSH de Windows
         panelOpenSshCard = new Panel
         {
-            Location = new Point(16, 210),
+            Location = new Point(16, 236), // +26px por la tercera opción en grpPurpose
             Size = new Size(368, 58),
             BackColor = Color.FromArgb(15, 23, 42)
         };
@@ -262,7 +289,7 @@ public partial class Form1
             Text = "🔑 Credenciales de Windows (OpenSSH):",
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 274),
+            Location = new Point(16, 300),
             Size = new Size(368, 20)
         };
         panelServerControlCard.Controls.Add(lblCredTitle);
@@ -272,7 +299,7 @@ public partial class Form1
             Text = "Usuario Windows:",
             Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 296),
+            Location = new Point(16, 322),
             Size = new Size(175, 18)
         };
         panelServerControlCard.Controls.Add(lblUser);
@@ -282,7 +309,7 @@ public partial class Form1
             Text = "Contraseña Windows:",
             Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(200, 296),
+            Location = new Point(200, 322),
             Size = new Size(184, 18)
         };
         panelServerControlCard.Controls.Add(lblPass);
@@ -290,7 +317,7 @@ public partial class Form1
         txtServerUser = new TextBox
         {
             Text = Environment.UserName,
-            Location = new Point(16, 316),
+            Location = new Point(16, 342),
             Size = new Size(175, 27),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
@@ -303,7 +330,7 @@ public partial class Form1
         txtServerPass = new TextBox
         {
             Text = "",
-            Location = new Point(200, 316),
+            Location = new Point(200, 342),
             Size = new Size(135, 27),
             BackColor = Color.FromArgb(15, 23, 42),
             ForeColor = Color.White,
@@ -317,7 +344,7 @@ public partial class Form1
         btnTogglePassVisibility = new Button
         {
             Text = "👁️",
-            Location = new Point(339, 315),
+            Location = new Point(339, 341),
             Size = new Size(45, 29),
             BackColor = Color.FromArgb(30, 41, 59),
             ForeColor = Color.White,
@@ -337,7 +364,7 @@ public partial class Form1
             Text = "💡 Usa el usuario y contraseña de tu cuenta de Windows en esta laptop.",
             Font = new Font("Segoe UI", 7.8F),
             ForeColor = Color.FromArgb(250, 204, 21),
-            Location = new Point(16, 346),
+            Location = new Point(16, 372),
             Size = new Size(368, 28)
         };
         panelServerControlCard.Controls.Add(lblPassHelp);
@@ -348,7 +375,7 @@ public partial class Form1
             Text = "Puerto OpenSSH (SFTP):",
             Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(16, 376),
+            Location = new Point(16, 402),
             Size = new Size(175, 18)
         };
         panelServerControlCard.Controls.Add(lblServerSshPort);
@@ -358,14 +385,14 @@ public partial class Form1
             Text = "Puerto Proxy (HTTP/SOCKS):",
             Font = new Font("Segoe UI", 8.2F),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(200, 376),
+            Location = new Point(200, 402),
             Size = new Size(184, 18)
         };
         panelServerControlCard.Controls.Add(lblServerProxyPort);
 
         numServerSshPort = new NumericUpDown
         {
-            Location = new Point(16, 396),
+            Location = new Point(16, 422),
             Size = new Size(175, 27),
             Minimum = 1,
             Maximum = 65535,
@@ -381,7 +408,7 @@ public partial class Form1
 
         numServerProxyPort = new NumericUpDown
         {
-            Location = new Point(200, 396),
+            Location = new Point(200, 422),
             Size = new Size(184, 27),
             Minimum = 1,
             Maximum = 65535,
@@ -394,21 +421,21 @@ public partial class Form1
         panelServerControlCard.Controls.Add(numServerProxyPort);
 
         // ── Grupo 2: Modo de Red (Panel propio — grupo independiente de Propósito) ──
-        var lblModeTitle = new Label
+        lblModeTitle = new Label
         {
             Text = "🌐 Modo de Red / Alcance",
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Color.FromArgb(226, 232, 240),
-            Location = new Point(16, 432),
+            Location = new Point(16, 484),
             Size = new Size(368, 20)
         };
         panelServerControlCard.Controls.Add(lblModeTitle);
 
         // Panel contenedor del grupo de red — imprescindible para que WinForms
         // trate estos RadioButtons como grupo separado al de 'Propósito' de arriba.
-        var grpNetwork = new Panel
+        grpNetwork = new Panel
         {
-            Location = new Point(16, 454),
+            Location = new Point(16, 506),
             Size = new Size(368, 110),
             BackColor = Color.Transparent
         };
@@ -434,7 +461,7 @@ public partial class Form1
         };
         grpNetwork.Controls.Add(rbServerLan);
 
-        var lblLanDesc = new Label
+        lblLanDesc = new Label
         {
             Text = "Para laptops o celulares conectados a la misma red Wi-Fi o zona compartida.",
             Font = new Font("Segoe UI", 7.8F),
@@ -476,7 +503,7 @@ public partial class Form1
         };
         grpNetwork.Controls.Add(rbServerRemote);
 
-        var lblRemoteDesc = new Label
+        lblRemoteDesc = new Label
         {
             Text = "Permite conectar desde cualquier red o datos móviles mediante túnel inverso sin abrir puertos.",
             Font = new Font("Segoe UI", 7.8F),
@@ -501,7 +528,7 @@ public partial class Form1
             BorderStyle = BorderStyle.None
         };
 
-        var lblInfoTitle = new Label
+        lblInfoTitle = new Label
         {
             Text = "📡 Datos para tus Dispositivos",
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
@@ -512,7 +539,7 @@ public partial class Form1
         panelServerInfoCard.Controls.Add(lblInfoTitle);
 
         // IP Local de la Laptop
-        var lblIpLocal = new Label
+        lblIpLocal = new Label
         {
             Text = "IP Local de tu PC (Wi-Fi / Hotspot):",
             Font = new Font("Segoe UI", 8.5F),
@@ -576,7 +603,7 @@ public partial class Form1
         panelServerInfoCard.Controls.Add(btnRefreshIp);
 
         // Host Público / Túnel
-        var lblPublicHost = new Label
+        lblPublicHost = new Label
         {
             Text = "Host Público / Túnel Remoto:",
             Font = new Font("Segoe UI", 8.5F),
@@ -621,7 +648,7 @@ public partial class Form1
         panelServerInfoCard.Controls.Add(btnCopyPublicHost);
 
         // Credencial Formato TatoVPN
-        var lblConnString = new Label
+        lblConnString = new Label
         {
             Text = "Credencial Formato TatoVPN / SSH:",
             Font = new Font("Segoe UI", 8.5F),
@@ -669,7 +696,7 @@ public partial class Form1
         panelServerInfoCard.Controls.Add(btnCopyConnectionString);
 
         // Log de Actividad del Servidor
-        var lblLogs = new Label
+        lblLogs = new Label
         {
             Text = "📋 Registro en Vivo del Servidor:",
             Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
@@ -709,12 +736,168 @@ public partial class Form1
         panelModoServidor.Controls.Add(panelServerInfoCard);
     }
 
+    private void AdjustModoServidorLayout()
+    {
+        if (panelModoServidor == null || panelServerControlCard == null || panelServerInfoCard == null)
+            return;
+
+        int availWidth = panelModoServidor.ClientSize.Width;
+        if (availWidth <= 0) return;
+
+        int margin = 20;
+        int gap = 16;
+        int startY = 75;
+
+        lblModoServidorTitle.Width = Math.Max(300, availWidth - margin * 2);
+        lblModoServidorSub.Width = Math.Max(300, availWidth - margin * 2);
+
+        // Si el ancho disponible es >= 840px, mostramos 2 columnas lado a lado
+        if (availWidth >= 840)
+        {
+            int cardWidth = (availWidth - margin * 2 - gap) / 2;
+            cardWidth = Math.Max(380, cardWidth);
+
+            panelServerControlCard.Location = new Point(margin, startY);
+            panelServerControlCard.Width = cardWidth;
+            panelServerControlCard.Height = 648;
+
+            panelServerInfoCard.Location = new Point(margin + cardWidth + gap, startY);
+            panelServerInfoCard.Width = cardWidth;
+            panelServerInfoCard.Height = 648;
+        }
+        else
+        {
+            // Ancho menor a 840px: 1 columna apilada verticalmente
+            int cardWidth = Math.Max(320, availWidth - margin * 2);
+
+            panelServerControlCard.Location = new Point(margin, startY);
+            panelServerControlCard.Width = cardWidth;
+            panelServerControlCard.Height = 648;
+
+            panelServerInfoCard.Location = new Point(margin, panelServerControlCard.Bottom + gap);
+            panelServerInfoCard.Width = cardWidth;
+            panelServerInfoCard.Height = 600;
+        }
+
+        AdjustServerControlCardControls();
+        AdjustServerInfoCardControls();
+    }
+
+    private void AdjustServerControlCardControls()
+    {
+        if (panelServerControlCard == null) return;
+        int cardWidth = panelServerControlCard.ClientSize.Width;
+        if (cardWidth <= 100) return;
+
+        int innerWidth = cardWidth - 32;
+
+        pnlStatusBox.Width = innerWidth;
+        lblServerStatusBadge.Width = Math.Max(150, innerWidth - 24);
+        lblServerStatusDesc.Width = Math.Max(150, innerWidth - 24);
+
+        btnServerToggle.Width = innerWidth;
+
+        lblPurposeTitle.Width = innerWidth;
+        grpPurpose.Width = innerWidth;
+        rbServerPurposeFiles.Width = innerWidth;
+        rbServerPurposeHttp.Width = innerWidth;
+        rbServerPurposeDesktop.Width = innerWidth;
+
+        panelOpenSshCard.Width = innerWidth;
+        btnOpenSshAction.Left = Math.Max(10, panelOpenSshCard.Width - btnOpenSshAction.Width - 10);
+        lblOpenSshStatus.Width = Math.Max(100, btnOpenSshAction.Left - 15);
+
+        lblCredTitle.Width = innerWidth;
+        lblPassHelp.Width = innerWidth;
+
+        // Credenciales: 50% usuario, 50% contraseña
+        int halfWidth = Math.Max(80, (innerWidth - 16) / 2);
+        lblUser.Width = halfWidth;
+        txtServerUser.Width = halfWidth;
+
+        int passLeft = 16 + halfWidth + 16;
+        lblPass.Left = passLeft;
+        lblPass.Width = halfWidth;
+
+        btnTogglePassVisibility.Left = cardWidth - 16 - btnTogglePassVisibility.Width;
+        txtServerPass.Left = passLeft;
+        txtServerPass.Width = Math.Max(60, btnTogglePassVisibility.Left - passLeft - 6);
+
+        // Puertos: 50% SSH, 50% Proxy
+        lblServerSshPort.Width = halfWidth;
+        numServerSshPort.Width = halfWidth;
+
+        lblServerProxyPort.Left = passLeft;
+        lblServerProxyPort.Width = halfWidth;
+        numServerProxyPort.Left = passLeft;
+        numServerProxyPort.Width = Math.Max(60, cardWidth - 16 - passLeft);
+
+        // Modo de Red
+        lblModeTitle.Width = innerWidth;
+        grpNetwork.Width = innerWidth;
+        rbServerLan.Width = innerWidth;
+        lblLanDesc.Width = Math.Max(100, innerWidth - 20);
+        rbServerRemote.Width = innerWidth;
+        lblRemoteDesc.Width = Math.Max(100, innerWidth - 20);
+    }
+
+    private void AdjustServerInfoCardControls()
+    {
+        if (panelServerInfoCard == null) return;
+        int cardWidth = panelServerInfoCard.ClientSize.Width;
+        if (cardWidth <= 100) return;
+
+        int innerWidth = cardWidth - 32;
+
+        lblInfoTitle.Width = innerWidth;
+
+        // IP Local
+        lblIpLocal.Width = innerWidth;
+        btnRefreshIp.Left = cardWidth - 16 - btnRefreshIp.Width;
+        btnCopyLocalIp.Left = btnRefreshIp.Left - 6 - btnCopyLocalIp.Width;
+        txtServerLocalIp.Width = Math.Max(80, btnCopyLocalIp.Left - 16 - 6);
+
+        // Host Público
+        lblPublicHost.Width = innerWidth;
+        btnCopyPublicHost.Left = cardWidth - 16 - btnCopyPublicHost.Width;
+        txtServerPublicHost.Width = Math.Max(80, btnCopyPublicHost.Left - 16 - 6);
+
+        // Cadena de Conexión
+        lblConnString.Width = innerWidth;
+        txtServerConnectionString.Width = innerWidth;
+        btnCopyConnectionString.Width = innerWidth;
+
+        // Logs
+        btnClearServerLogs.Left = cardWidth - 16 - btnClearServerLogs.Width;
+        lblLogs.Width = Math.Max(100, btnClearServerLogs.Left - 16 - 6);
+        rtbServerLogs.Width = innerWidth;
+        rtbServerLogs.Height = Math.Max(260, panelServerInfoCard.Height - rtbServerLogs.Top - 16);
+    }
+
     private void UpdatePurposeUiState()
     {
-        bool isFilesMode = rbServerPurposeFiles.Checked;
+        bool isFilesMode   = rbServerPurposeFiles.Checked;
+        bool isDesktopMode = rbServerPurposeDesktop?.Checked ?? false;
+        bool isHttpMode    = rbServerPurposeHttp?.Checked ?? false;
 
+        // El panel OpenSSH solo aplica para modo Archivos
         panelOpenSshCard.Visible = isFilesMode;
-        lblPassHelp.Visible = isFilesMode;
+
+        // Las credenciales solo aplican para Archivos y HTTP Injector, no para Escritorio
+        bool showCreds = !isDesktopMode;
+        lblCredTitle.Visible   = showCreds;
+        lblUser.Visible        = showCreds;
+        lblPass.Visible        = showCreds;
+        txtServerUser.Visible  = showCreds;
+        txtServerPass.Visible  = showCreds;
+        btnTogglePassVisibility.Visible = showCreds;
+        lblPassHelp.Visible    = showCreds;
+
+        // Los puertos solo aplican para Archivos y HTTP Injector
+        lblServerSshPort.Visible   = showCreds;
+        numServerSshPort.Visible   = showCreds;
+        lblServerProxyPort.Visible = isHttpMode;
+        numServerProxyPort.Visible = isHttpMode;
 
         if (isFilesMode)
         {
@@ -725,11 +908,12 @@ public partial class Form1
             lblServerSshPort.Text = "Puerto OpenSSH (SFTP):";
             numServerSshPort.Value = WindowsOpenSshService.OpenSshPort;
             numServerSshPort.Enabled = false;
-
-            lblServerProxyPort.Visible = false;
-            numServerProxyPort.Visible = false;
-
             UpdateOpenSshStatusUi();
+        }
+        else if (isDesktopMode)
+        {
+            // En modo escritorio remoto no se necesitan credenciales propias.
+            // El túnel SSH ya está autenticado. El servidor desktop no pide usuario/contraseña.
         }
         else
         {
@@ -740,9 +924,6 @@ public partial class Form1
             lblServerSshPort.Text = "Puerto SSH (HTTP Injector):";
             numServerSshPort.Value = 2222;
             numServerSshPort.Enabled = !_isServerRunning;
-
-            lblServerProxyPort.Visible = true;
-            numServerProxyPort.Visible = true;
             numServerProxyPort.Enabled = !_isServerRunning;
         }
 
@@ -896,8 +1077,12 @@ public partial class Form1
 
     private void UpdateConnectionStringPreview()
     {
-        bool isFiles = rbServerPurposeFiles?.Checked ?? false;
-        int defaultPort = isFiles ? WindowsOpenSshService.OpenSshPort : (int)numServerSshPort.Value;
+        bool isFiles   = rbServerPurposeFiles?.Checked   ?? false;
+        bool isDesktop = rbServerPurposeDesktop?.Checked ?? false;
+
+        int defaultPort = isFiles ? WindowsOpenSshService.OpenSshPort
+                        : isDesktop ? RemoteDesktopServerService.DefaultPort
+                        : (int)numServerSshPort.Value;
         string host;
         int port;
 
@@ -905,7 +1090,6 @@ public partial class Form1
         {
             if (!string.IsNullOrWhiteSpace(_remotePublicHost) && _remotePublicPort.HasValue)
             {
-                // Túnel activo: usar host y puerto públicos reales
                 host = _remotePublicHost;
                 port = _remotePublicPort.Value;
             }
@@ -922,7 +1106,6 @@ public partial class Form1
             }
             else
             {
-                // Túnel aún no disponible: mostrar aviso en la credencial
                 txtServerConnectionString.Text = rbServerRemote.Checked && !_isServerRunning
                     ? "(Enciende el servidor para obtener el enlace público)"
                     : "(Esperando túnel público...)";
@@ -935,15 +1118,20 @@ public partial class Form1
             port = defaultPort;
         }
 
-        string user = string.IsNullOrWhiteSpace(txtServerUser.Text)
-            ? (isFiles ? Environment.UserName : "tatouser")
-            : txtServerUser.Text.Trim();
-        string pass = txtServerPass.Text.Trim();
-
-        // Formato legible: host:puerto@usuario:contraseña
-        // Si la contraseña está vacía se muestra un marcador claro para que el usuario la complete.
-        string passDisplay = string.IsNullOrEmpty(pass) ? "<ingresa_contraseña>" : pass;
-        txtServerConnectionString.Text = $"{host}:{port}@{user}:{passDisplay}";
+        if (isDesktop)
+        {
+            // Para escritorio remoto no hay usuario/contraseña. Solo host:puerto@escritorio
+            txtServerConnectionString.Text = $"{host}:{port}@escritorio";
+        }
+        else
+        {
+            string user = string.IsNullOrWhiteSpace(txtServerUser.Text)
+                ? (isFiles ? Environment.UserName : "tatouser")
+                : txtServerUser.Text.Trim();
+            string pass = txtServerPass.Text.Trim();
+            string passDisplay = string.IsNullOrEmpty(pass) ? "<ingresa_contraseña>" : pass;
+            txtServerConnectionString.Text = $"{host}:{port}@{user}:{passDisplay}";
+        }
     }
 
     private void AppendServerLog(string message)
@@ -985,11 +1173,13 @@ public partial class Form1
             RefreshLocalIp();
             UpdateConnectionStringPreview();
 
-            bool isFilesMode = rbServerPurposeFiles.Checked;
+            bool isFilesMode   = rbServerPurposeFiles.Checked;
+            bool isDesktopMode = rbServerPurposeDesktop?.Checked ?? false;
             string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isFilesMode ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
             string pass = txtServerPass.Text.Trim();
 
-            if (string.IsNullOrWhiteSpace(pass))
+            // En modo escritorio no se requiere contraseña
+            if (!isDesktopMode && string.IsNullOrWhiteSpace(pass))
             {
                 string msg = isFilesMode
                     ? "Por favor ingresa la contraseña de tu cuenta de Windows en esta laptop."
@@ -1062,6 +1252,54 @@ public partial class Form1
                     AppendServerLog("💡 En la otra laptop: Abre 'Conexión Remota', ingresa estos datos y conéctate.");
                     AppendServerLog("==================================================");
                     AppendServerLog("⏳ Servidor listo. Esperando conexión desde otra laptop...");
+                }
+            }
+            else if (isDesktopMode)
+            {
+                // ── Flujo C: Escritorio Remoto — inicia RemoteDesktopServerService ──────
+                _remoteDesktopServer = new RemoteDesktopServerService();
+                _remoteDesktopServer.OnLog += AppendServerLog;
+                _remoteDesktopServer.OnClientConnected += () =>
+                {
+                    if (InvokeRequired) { BeginInvoke(UpdateServerStatusSummary); return; }
+                    UpdateServerStatusSummary();
+                    AppendServerLog("✅ Cliente de escritorio remoto conectado. Streaming de pantalla iniciado.");
+                };
+                _remoteDesktopServer.OnClientDisconnected += () =>
+                {
+                    if (InvokeRequired) { BeginInvoke(UpdateServerStatusSummary); return; }
+                    UpdateServerStatusSummary();
+                    AppendServerLog("🔌 Cliente de escritorio remoto desconectado. Esperando nueva conexión...");
+                };
+                _remoteDesktopServer.Start();
+
+                _isServerRunning = true;
+                lblServerStatusBadge.Text      = "● SERVIDOR ESCRITORIO EN LÍNEA";
+                lblServerStatusBadge.ForeColor = Color.FromArgb(34, 197, 94);
+                lblServerStatusDesc.Text       = $"Servidor de escritorio activo en puerto {RemoteDesktopServerService.DefaultPort}. Esperando cliente...";
+                btnServerToggle.Text      = "⏹  Apagar Servidor";
+                btnServerToggle.BackColor = Color.FromArgb(220, 38, 38);
+
+                LockControlsWhileRunning(true);
+
+                if (rbServerRemote.Checked)
+                {
+                    // Iniciar túnel Pinggy apuntando al puerto del servidor de escritorio
+                    StartRemoteTunnel(RemoteDesktopServerService.DefaultPort, isRemoteFiles: false);
+                }
+                else
+                {
+                    string localIp = txtServerLocalIp.Text;
+                    AppendServerLog("==================================================");
+                    AppendServerLog("🖥️ ¡SERVIDOR DE ESCRITORIO REMOTO LISTO EN RED LOCAL!");
+                    AppendServerLog($"   • Host / IP Local : {localIp}");
+                    AppendServerLog($"   • Puerto          : {RemoteDesktopServerService.DefaultPort}");
+                    AppendServerLog("   • (No se necesita usuario ni contraseña)");
+                    AppendServerLog("💡 En la otra laptop: Abre TatoVPN → Escritorio Remoto,");
+                    AppendServerLog($"   ingresa  {localIp}:{RemoteDesktopServerService.DefaultPort}  y presiona Conectar.");
+                    AppendServerLog("📸 El cliente verá tu pantalla y podrá manejar mouse y teclado.");
+                    AppendServerLog("==================================================");
+                    AppendServerLog("⏳ Esperando conexión del cliente de escritorio remoto...");
                 }
             }
             else
@@ -1204,10 +1442,22 @@ public partial class Form1
         txtServerPublicHost.ForeColor = Color.FromArgb(34, 197, 94);
         UpdateConnectionStringPreview();
 
+        bool isDesktop = rbServerPurposeDesktop?.Checked ?? false;
         string user = string.IsNullOrWhiteSpace(txtServerUser.Text) ? (isRemoteFiles ? Environment.UserName : "tatouser") : txtServerUser.Text.Trim();
         string pass = txtServerPass.Text.Trim();
 
-        if (isRemoteFiles)
+        if (isDesktop)
+        {
+            AppendServerLog("==================================================");
+            AppendServerLog("🖥️ ¡TÚNEL DE ESCRITORIO REMOTO LISTO!");
+            AppendServerLog("💻 DATOS PARA CONECTAR DESDE OTRA LAPTOP (TatoVPN → Escritorio Remoto):");
+            AppendServerLog($"   • Host / Puerto  : {host}:{port}");
+            AppendServerLog("   • (No se necesita usuario ni contraseña para conectar)");
+            AppendServerLog("💡 Copia la cadena del campo 'Credencial Formato TatoVPN' y úsala en el cliente.");
+            AppendServerLog("📸 El cliente verá tu pantalla y podrá manejar el mouse y teclado remotamente.");
+            AppendServerLog("==================================================");
+        }
+        else if (isRemoteFiles)
         {
             AppendServerLog("==================================================");
             AppendServerLog("📁 ¡TÚNEL DE CONEXIÓN REMOTA (SFTP) LISTO!");
@@ -1264,6 +1514,13 @@ public partial class Form1
             {
                 lblServerStatusDesc.Text = "Servidor OpenSSH activo en puerto 22 (SFTP listo para Conexión Remota).";
             }
+            else if (rbServerPurposeDesktop?.Checked ?? false)
+            {
+                bool clientConnected = _remoteDesktopServer?.IsRunning ?? false;
+                lblServerStatusDesc.Text = clientConnected
+                    ? $"Servidor de escritorio activo en puerto {RemoteDesktopServerService.DefaultPort}. Cliente conectado."
+                    : $"Servidor de escritorio activo en puerto {RemoteDesktopServerService.DefaultPort}. Esperando cliente...";
+            }
             else
             {
                 int sshPort = (int)numServerSshPort.Value;
@@ -1275,9 +1532,11 @@ public partial class Form1
 
     private void LockControlsWhileRunning(bool running)
     {
-        rbServerPurposeFiles.Enabled = !running;
-        rbServerPurposeHttp.Enabled = !running;
-        rbServerLan.Enabled = !running;
+        rbServerPurposeFiles.Enabled   = !running;
+        rbServerPurposeHttp.Enabled    = !running;
+        if (rbServerPurposeDesktop != null)
+            rbServerPurposeDesktop.Enabled = !running;
+        rbServerLan.Enabled    = !running;
         rbServerRemote.Enabled = !running;
         txtServerUser.ReadOnly = running;
         txtServerPass.ReadOnly = running;
@@ -1288,9 +1547,14 @@ public partial class Form1
             numServerProxyPort.Enabled = false;
             btnOpenSshAction.Enabled = !running && WindowsOpenSshService.GetStatus() != WindowsOpenSshStatus.InstalledRunning;
         }
+        else if (rbServerPurposeDesktop?.Checked ?? false)
+        {
+            numServerSshPort.Enabled   = false;
+            numServerProxyPort.Enabled = false;
+        }
         else
         {
-            numServerSshPort.Enabled = !running;
+            numServerSshPort.Enabled   = !running;
             numServerProxyPort.Enabled = !running;
         }
     }
@@ -1319,6 +1583,12 @@ public partial class Form1
             {
                 _badvpnUdpGw.Dispose();
                 _badvpnUdpGw = null;
+            }
+
+            if (_remoteDesktopServer != null)
+            {
+                _remoteDesktopServer.Dispose();
+                _remoteDesktopServer = null;
             }
 
             RemoveServerFirewallRules();
