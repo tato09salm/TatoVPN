@@ -317,12 +317,13 @@ partial class Form1
         // 
         // lblSidebarStatusSub
         // 
-        lblSidebarStatusSub.AutoSize = true;
+        lblSidebarStatusSub.AutoEllipsis = true;
+        lblSidebarStatusSub.AutoSize = false;
         lblSidebarStatusSub.Font = new Font("Segoe UI", 8F);
         lblSidebarStatusSub.ForeColor = Color.FromArgb(100, 116, 139);
         lblSidebarStatusSub.Location = new Point(12, 65);
         lblSidebarStatusSub.Name = "lblSidebarStatusSub";
-        lblSidebarStatusSub.Size = new Size(150, 19);
+        lblSidebarStatusSub.Size = new Size(232, 22);
         lblSidebarStatusSub.TabIndex = 3;
         lblSidebarStatusSub.Text = "No hay conexión activa";
         // 

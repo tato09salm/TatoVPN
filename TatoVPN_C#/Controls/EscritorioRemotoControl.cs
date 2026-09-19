@@ -455,10 +455,11 @@ public class EscritorioRemotoControl : UserControl
         // ── Toolbar superior responsivo ─────────────────────────────────
         panelToolbar = new Panel
         {
-            Dock      = DockStyle.Top,
-            Height    = 44,
-            BackColor = Color.FromArgb(15, 23, 42),
-            Padding   = new Padding(12, 6, 12, 6)
+            Dock        = DockStyle.Top,
+            Height      = 44,
+            MinimumSize = new Size(0, 44),
+            BackColor   = Color.FromArgb(15, 23, 42),
+            Padding     = new Padding(12, 6, 12, 6)
         };
 
         var panelToolbarLeft = new FlowLayoutPanel
@@ -586,9 +587,11 @@ public class EscritorioRemotoControl : UserControl
         pbPantalla.KeyUp      += PbPantalla_KeyUp;
         panelDesktop.Controls.Add(pbPantalla);
 
-        // Asegurar que el toolbar superior se mantenga al frente y visible
-        panelToolbar.BringToFront();
-        pbPantalla.SendToBack();
+        // En WinForms, el layout de docking procesa los controles en orden inverso de Controls.
+        // panelToolbar (Dock=Top) debe estar atrás (SendToBack) para evaluarse primero y reservar sus 44px arriba.
+        // pbPantalla (Dock=Fill) debe estar al frente (BringToFront) para evaluarse al final y ocupar solo el espacio restante.
+        panelToolbar.SendToBack();
+        pbPantalla.BringToFront();
 
         panelBody.Controls.Add(panelDesktop);
     }
@@ -1134,6 +1137,8 @@ public class EscritorioRemotoControl : UserControl
         panelConexion.Visible = false;
         panelDesktop.Visible  = true;
         panelDesktop.BringToFront();
+        if (panelToolbar != null) panelToolbar.Visible = true;
+        panelDesktop.PerformLayout();
         lblDesktopStatus.Text      = string.IsNullOrEmpty(_currentHost)
             ? "● Conectado"
             : $"● Conectado a {_currentHost}:{_currentPort}";
