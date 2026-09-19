@@ -48,6 +48,11 @@ public class EscritorioRemotoControl : UserControl
     private Panel panelConexion     = null!;
     private Panel panelDesktop      = null!;
 
+    // ── Header superior y botón de escape rápido ────────────────────────
+    private TableLayoutPanel panelHeaderTable     = null!;
+    private Panel            panelHeaderSep       = null!;
+    private Button           btnHeaderDesconectar = null!;
+
     // ── Vista 1: Formulario de conexión ─────────────────────────────────
     private TableLayoutPanel gridCenter = null!;
     private Panel  panelCardConexion   = null!;
@@ -140,37 +145,64 @@ public class EscritorioRemotoControl : UserControl
         BuildConnectionView();
         BuildDesktopView();
 
+        // En WinForms, el layout de docking procesa los controles en orden inverso de Controls (de mayor a menor índice).
+        // panelHeaderTable (Dock=Top) debe estar atrás (SendToBack) para evaluarse primero y ocupar el tope (Y=0..H).
+        // panelHeaderSep (Dock=Top) se evalúa segundo debajo de la cabecera (Y=H..H+1).
+        // panelBody (Dock=Fill) debe estar al frente (BringToFront) para evaluarse al final y ocupar solo el espacio restante.
+        panelHeaderTable.SendToBack();
+        panelBody.BringToFront();
+
         CenterConnectionCard();
         this.ResumeLayout(false);
     }
 
     private void BuildHeader()
     {
-        var tbl = new TableLayoutPanel
+        panelHeaderTable = new TableLayoutPanel
         {
             Dock              = DockStyle.Top,
             AutoSize          = true,
             AutoSizeMode      = AutoSizeMode.GrowAndShrink,
-            ColumnCount       = 1,
+            ColumnCount       = 2,
             RowCount          = 2,
             Padding           = new Padding(20, 8, 20, 6),
             BackColor         = Color.FromArgb(11, 15, 25)
         };
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        tbl.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        tbl.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panelHeaderTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        panelHeaderTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panelHeaderTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panelHeaderTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        tbl.Controls.Add(new Label
+        var lblHeaderTitle = new Label
         {
-            Text     = "🖥️  Escritorio Remoto",
-            Font     = new Font("Segoe UI", 13.5F, FontStyle.Bold),
+            Text      = "🖥️  Escritorio Remoto",
+            Font      = new Font("Segoe UI", 13.5F, FontStyle.Bold),
             ForeColor = Color.White,
-            Dock     = DockStyle.Fill,
-            AutoSize = true,
-            Padding  = new Padding(0, 4, 0, 2)
-        }, 0, 0);
+            Dock      = DockStyle.Fill,
+            AutoSize  = true,
+            Padding   = new Padding(0, 4, 0, 2)
+        };
+        panelHeaderTable.Controls.Add(lblHeaderTitle, 0, 0);
 
-        tbl.Controls.Add(new Label
+        btnHeaderDesconectar = new Button
+        {
+            Text      = "⏹  Desconectar",
+            Height    = 30,
+            AutoSize  = true,
+            BackColor = Color.FromArgb(220, 38, 38),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font      = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Cursor    = Cursors.Hand,
+            Visible   = false,
+            Anchor    = AnchorStyles.Right,
+            Margin    = new Padding(8, 2, 0, 2)
+        };
+        btnHeaderDesconectar.FlatAppearance.BorderSize = 0;
+        btnHeaderDesconectar.Click += (s, e) => Disconnect();
+        panelHeaderTable.Controls.Add(btnHeaderDesconectar, 1, 0);
+
+        var lblHeaderSub = new Label
         {
             Text      = "Controla la pantalla de una laptop remota en tiempo real a través del túnel SSH.",
             Font      = new Font("Segoe UI", 8.8F),
@@ -178,18 +210,19 @@ public class EscritorioRemotoControl : UserControl
             Dock      = DockStyle.Fill,
             AutoSize  = true,
             Padding   = new Padding(0, 0, 0, 4)
-        }, 0, 1);
+        };
+        panelHeaderTable.Controls.Add(lblHeaderSub, 0, 1);
+        panelHeaderTable.SetColumnSpan(lblHeaderSub, 2);
 
-        var sep = new Panel
+        panelHeaderSep = new Panel
         {
             Height    = 1,
             Dock      = DockStyle.Top,
             BackColor = Color.FromArgb(30, 41, 59)
         };
 
-        this.Controls.Add(sep);
-        this.Controls.Add(tbl);
-        tbl.BringToFront();
+        this.Controls.Add(panelHeaderSep);
+        this.Controls.Add(panelHeaderTable);
     }
 
     private void BuildBodyPanel()
@@ -202,7 +235,6 @@ public class EscritorioRemotoControl : UserControl
             AutoScroll = false
         };
         this.Controls.Add(panelBody);
-        panelBody.SendToBack();
     }
 
     private void BuildConnectionView()
@@ -817,6 +849,7 @@ public class EscritorioRemotoControl : UserControl
         if (_isDisconnecting) return;
         _isDisconnecting = true;
         if (btnDesconectar != null) btnDesconectar.Enabled = false;
+        if (btnHeaderDesconectar != null) btnHeaderDesconectar.Enabled = false;
 
         HandleDisconnection("Desconectado por el usuario.");
     }
@@ -837,6 +870,11 @@ public class EscritorioRemotoControl : UserControl
         {
             _isDisconnecting = false;
             if (btnDesconectar != null) btnDesconectar.Enabled = true;
+            if (btnHeaderDesconectar != null)
+            {
+                btnHeaderDesconectar.Enabled = true;
+                btnHeaderDesconectar.Visible = false;
+            }
 
             var old = pbPantalla?.Image;
             if (pbPantalla != null) pbPantalla.Image = null;
@@ -1051,6 +1089,9 @@ public class EscritorioRemotoControl : UserControl
         panelConexion.Visible = true;
         panelConexion.BringToFront();
         if (panelDesktop != null) panelDesktop.Visible = false;
+        if (panelToolbar != null) panelToolbar.Visible = false;
+        if (btnDesconectar != null) btnDesconectar.Visible = false;
+        if (btnHeaderDesconectar != null) btnHeaderDesconectar.Visible = false;
         CenterConnectionCard();
     }
 
@@ -1138,12 +1179,21 @@ public class EscritorioRemotoControl : UserControl
         panelDesktop.Visible  = true;
         panelDesktop.BringToFront();
         if (panelToolbar != null) panelToolbar.Visible = true;
+        if (btnDesconectar != null)
+        {
+            btnDesconectar.Visible = true;
+            btnDesconectar.Enabled = true;
+        }
+        if (btnHeaderDesconectar != null)
+        {
+            btnHeaderDesconectar.Visible = true;
+            btnHeaderDesconectar.Enabled = true;
+        }
         panelDesktop.PerformLayout();
         lblDesktopStatus.Text      = string.IsNullOrEmpty(_currentHost)
             ? "● Conectado"
             : $"● Conectado a {_currentHost}:{_currentPort}";
         lblDesktopStatus.ForeColor = Color.FromArgb(34, 197, 94);
-        if (btnDesconectar != null) btnDesconectar.Enabled = true;
         pbPantalla.Focus();
     }
 
